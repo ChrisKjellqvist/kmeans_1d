@@ -7,6 +7,6 @@
 
 #define K 16
 #define N_DATAS 50000
-#define MINIMUM_DATA_VALUE __fp16(0)
+#define MINIMUM_DATA_VALUE halfFloat_t(0)
 
 #endif //KMEANS_HACKING_CONSTANTS_H

@@ -9,6 +9,6 @@
 #include <vector>
 #include <tuple>
 
-std::pair<double, __fp16> get_mean_insert(int k, std::vector<__fp16> &means, const uint16_t *radix_bins, __fp16 min_data, __fp16 max_data);
+std::pair<double, halfFloat_t> get_mean_insert(int k, std::vector<halfFloat_t> &means, const uint16_t *radix_bins, halfFloat_t min_data, halfFloat_t max_data);
 
 #endif //KMEANS_HACKING_KMEANS_H
