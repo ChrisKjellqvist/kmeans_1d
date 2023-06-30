@@ -11,6 +11,10 @@ void preprocess_and_insert_data(std::vector<__fp16> &fpar, uint16_t *radix_bins,
     max_data = fpar[0];
     for (auto &dat: fpar) {
         auto radix = float2radix(dat - MINIMUM_DATA_VALUE);
+        if (radix_bins[radix] == (1 << (sizeof(radix_t) * 8)) - 1) {
+            std::cout << "radix bin overflow" << std::endl;
+            throw std::runtime_error("radix bin overflow");
+        }
         radix_bins[radix]++;
         if (dat < min_data) min_data = dat;
         if (dat > max_data) max_data = dat;
@@ -107,7 +111,7 @@ int main() {
                 update_table[min_idx + 1] = get_mean_insert(min_idx + 1, means, radix_bins, min_data, max_data);
                 update_valid[min_idx + 1] = update_table[min_idx+ 1].second != means[min_idx + 1];
             }
-            if (iterations > 1000) {
+            if (iterations > 10000) {
                 num_not_converged++;
                 num_iterations_total += iterations;
                 // print out current update table and break
