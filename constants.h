@@ -1,0 +1,17 @@
+//
+// Created by Chris Kjellqvist on 6/29/23.
+//
+
+#ifndef KMEANS_HACKING_CONSTANTS_H
+#define KMEANS_HACKING_CONSTANTS_H
+
+#define K 16
+#define N_DATAS 50000
+#define ITERATIONS 10
+#define MINIMUM_DATA_VALUE __fp16(0)
+
+#define FP16_EXP_FLAG 0x7C00
+#define FP16_MANTISSA_BITS 10
+#define FP16_EXPONENT_BITS 5
+
+#endif //KMEANS_HACKING_CONSTANTS_H
