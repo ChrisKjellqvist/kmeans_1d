@@ -12,10 +12,8 @@ using radix_t = uint16_t;
 
 #ifdef __ARM64_ARCH_8__
 using halfFloat_t= __fp16;
-#elif defined(__X86_64__) || defined(_M_X64)
-using halfFloat_t = _Float16;
 #else
-#error "Unsupported platform"
+using halfFloat_t = _Float16;
 #endif
 
 
