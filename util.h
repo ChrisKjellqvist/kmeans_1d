@@ -10,22 +10,13 @@
 
 using radix_t = uint16_t;
 
-#ifdef __ARM64_ARCH_8__
-using halfFloat_t= __fp16;
-#elif defined(__X86_64__)
-using halfFloat_t = _Float16;
-#else
-#error "Unsupported platform"
-#endif
-
-
 #include "constants.h"
 
-radix_t float2radix(halfFloat_t f);
+radix_t float2radix(__fp16 f);
 
-halfFloat_t radix2float(radix_t radix);
+__fp16 radix2float(radix_t radix);
 
-halfFloat_t radix2float_exact(radix_t radix); // NOLINT
+__fp16 radix2float_exact(radix_t radix); // NOLINT
 
 constexpr uint32_t n_radix_bins() {
     return 1 << (8 * sizeof(radix_t));
@@ -34,8 +25,8 @@ constexpr uint32_t n_radix_bins() {
 
 struct move_t {
     double improvement;
-    halfFloat_t location;
-    move_t(double imp, halfFloat_t loc): improvement(imp), location(loc) {}
+    __fp16 location;
+    move_t(double imp, __fp16 loc): improvement(imp), location(loc) {}
     move_t() = default;
 };
 
