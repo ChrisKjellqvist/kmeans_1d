@@ -28,48 +28,58 @@ int main() {
     // make random data
     std::random_device rd;
     std::mt19937 gen(rd());
-    // generate random bools
-    std::uniform_real_distribution<float> booler(0, 1);
-    float center1 = 18, center2 = 45;
-    float std_dev1 = 2, std_dev2 = 2;
-    std::normal_distribution<float> dis1(center1, std_dev1);
-    std::normal_distribution<float> dis2(center2, std_dev2);
-    int num_not_converged = 0;
-    int num_iterations_total = 0;
+    std::mt19937 gen_fixed(8);
     double average_error = 0;
+    int N_DATAS = 50000;
+    std::vector<float_type> data;
+    float center1 = 18, center2 = 45;
+    {
+        std::uniform_real_distribution<float> booler(0, 1);
+        float std_dev1 = 3, std_dev2 = 3;
+        std::normal_distribution<float> dis1(center1, std_dev1);
+        std::normal_distribution<float> dis2(center1, std_dev2);
 
-    // sanity check the error propagation of the radix conversion
-    for (int i = 0; i < 1000; ++i) {
-        auto f = dis1(gen) - MINIMUM_PERMISSIBLE_DATA_VALUE;
-        auto r = float2radix(f);
-        auto f2 = radix2float(r);
-        if (abs(f - f2) > 0.1) {
-            std::cout << "error in radix conversion: " << f << " " << r << " " << float(f2) <<  std::endl;
-            throw std::runtime_error("error in radix conversion");
+        // sanity check the error propagation of the radix conversion
+        for (int i = 0; i < 1000; ++i) {
+            auto f = dis1(gen) - MINIMUM_PERMISSIBLE_DATA_VALUE;
+            auto r = float2radix((float_type)f);
+            auto f2 = radix2float(r);
+            if (abs(f - f2) > 0.1) {
+                std::cout << "error in radix conversion: " << f << " " << r << " " << float(f2) << std::endl;
+                throw std::runtime_error("error in radix conversion");
+            }
+        }
+        std::cerr << "Passed conversion sanity checks" << std::endl;
+
+        // generate data
+        data.reserve(N_DATAS);
+        for (int i = 0; i < N_DATAS; ++i) {
+            if (booler(gen_fixed) < 0.5)
+                data.push_back((float_type) dis1(gen_fixed));
+            else
+                data.push_back((float_type) dis2(gen_fixed));
         }
     }
 
-    std::cerr << "Passed sanity checks" << std::endl;
-
-    std::vector<float_type> data;
-    // generate data
-    data.reserve(N_DATAS);
-    for (int i = 0; i < N_DATAS; ++i) {
-        if (booler(gen) < 0.5)
-            data.push_back((float_type) dis1(gen));
-        else
-            data.push_back((float_type) dis2(gen));
+    // find maximum and minimum datas
+    float_type max_data = data[0];
+    float_type min_data = data[0];
+    for (auto &dat: data) {
+        if (dat > max_data) max_data = dat;
+        if (dat < min_data) min_data = dat;
     }
+    std::cout << "SANITY: max data: " << float(max_data) << std::endl;
+    std::cout << "SANITY: min data: " << float(min_data) << std::endl;
+
+#ifndef NDEBUG
+    int N_TIMES = 1;
+#else
+    int N_TIMES = 768;
+#endif
 
     // total execution time counter
     unsigned long long total_time = 0;
-    for (int R = 0; R <
-#ifndef NDEBUG
-            1
-#else
-    768
-#endif
-    ; ++R) {
+    for (int R = 0; R < N_TIMES; ++R) {
         auto start = std::chrono::high_resolution_clock::now();
         auto means = kmeans(data, 16, 3000);
         auto end = std::chrono::high_resolution_clock::now();
@@ -88,8 +98,7 @@ int main() {
 #endif
     }
 
-    std::cout << "average error: " << average_error / 768.0 << std::endl;
-    std::cout << "total time: " << (total_time / (1000)) << "ms" << std::endl;
-    std::cout << "time per iteration: " << total_time / 768 << "µs" << std::endl;
-    std::cout << "Throughput: " << 768.0 / (total_time / 1000000.0) << " data points per second" << std::endl; //NOLINT
+    std::cout << "average error: " << average_error / N_TIMES << std::endl;
+    std::cout << "time per kmean: " << total_time / N_TIMES << "µs" << std::endl;
+    std::cout << "Throughput: " << N_TIMES / (total_time / 1000000.0) << " kmean per second" << std::endl; //NOLINT
 }

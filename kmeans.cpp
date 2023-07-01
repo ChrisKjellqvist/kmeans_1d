@@ -73,7 +73,7 @@
 
 // there will certainly be some bad corner cases if k ~ N, shouldn't occur otherwise, though
 // In the larger algorithm, we're going to spoof removing the k-mean and then re-placing it in the same interval
-std::pair<double, float_type> get_mean_insert(int k, std::vector<float_type> &means, const uint16_t *radix_bins, float_type min_data, float_type max_data) {
+std::pair<double, float_type> get_mean_insert(int k, int K, std::vector<float_type> &means, const uint16_t *radix_bins, float_type min_data, float_type max_data) {
     // bottom and top are the minimum and maximum logical places we can place k
     //
     // if we are considering a mean that is between other means, then we only consider placing it anywhere between
@@ -244,7 +244,7 @@ void preprocess_and_insert_data(const std::vector<float_type> &fpar, uint16_t *r
 #include <string>
 
 // kmeans top-level function
-std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t k, size_t max_iterations) {
+std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t K, size_t max_iterations) {
     uint16_t radix_bins[n_radix_bins()];
 
     float_type min_data, max_data;
@@ -273,7 +273,7 @@ std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t k, si
     std::pair<double, float_type> update_table[K];
     bool update_valid[K];
     for (int i = 0; i < K; ++i) {
-        update_table[i] = get_mean_insert(i, means, radix_bins, min_data, max_data);
+        update_table[i] = get_mean_insert(i, K, means, radix_bins, min_data, max_data);
         update_valid[i] = true;
     }
 
@@ -298,11 +298,11 @@ std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t k, si
         update_valid[min_idx] = false;
         // update the update table. First update neighbors, then update the moved mean
         if (min_idx > 0) {
-            update_table[min_idx - 1] = get_mean_insert(min_idx - 1, means, radix_bins, min_data, max_data);
+            update_table[min_idx - 1] = get_mean_insert(min_idx - 1, K, means, radix_bins, min_data, max_data);
             update_valid[min_idx - 1] = update_table[min_idx - 1].second != means[min_idx - 1];
         }
         if (min_idx < K - 1) {
-            update_table[min_idx + 1] = get_mean_insert(min_idx + 1, means, radix_bins, min_data, max_data);
+            update_table[min_idx + 1] = get_mean_insert(min_idx + 1, K, means, radix_bins, min_data, max_data);
             update_valid[min_idx + 1] = update_table[min_idx + 1].second != means[min_idx + 1];
         }
         if (iterations > max_iterations) {
