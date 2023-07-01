@@ -4,6 +4,7 @@
 
 #include "kmeans.h"
 #include <iostream>
+#include <cstring>
 
 /**
  * Algorithm Description:
