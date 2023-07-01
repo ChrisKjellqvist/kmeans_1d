@@ -3,7 +3,9 @@ project(kmeans_hacking)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_compile_options(-Xclang -fnative-half-type)
+if (APPLE)
+    add_compile_options(-Xclang -fnative-half-type)
+endif()
 
 add_executable(kmeans_hacking main.cpp util.cpp util.h constants.h kmeans.cpp kmeans.h)
 
