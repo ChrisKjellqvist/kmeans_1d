@@ -223,43 +223,52 @@ std::pair<double, float_type> get_mean_insert(int k, std::vector<float_type> &me
 }
 
 
-void preprocess_and_insert_data(std::vector<float_type> &fpar, uint16_t *radix_bins, float_type &min_data, float_type &max_data) {
+void preprocess_and_insert_data(const std::vector<float_type> &fpar, uint16_t *radix_bins, float_type &min_data, float_type &max_data) {
     min_data = fpar[0];
     max_data = fpar[0];
-    for (auto &dat: fpar) {
-        auto radix = float2radix(dat - MINIMUM_DATA_VALUE);
+    for (const auto dat: fpar) {
+        auto adjusted_datum = dat - MINIMUM_PERMISSIBLE_DATA_VALUE;
+        if (dat < MINIMUM_PERMISSIBLE_DATA_VALUE) {
+            throw std::runtime_error("data value (" + std::to_string(float(dat)) + ") smaller than minimum permissible data value (" + std::to_string(float(MINIMUM_PERMISSIBLE_DATA_VALUE)) + ")");
+        }
+        auto radix = float2radix(adjusted_datum);
         if (radix_bins[radix] == (1 << (sizeof(radix_t) * 8)) - 1) {
             std::cout << "radix bin overflow" << std::endl;
             throw std::runtime_error("radix bin overflow");
         }
         radix_bins[radix]++;
-        if (dat < min_data) min_data = dat;
-        if (dat > max_data) max_data = dat;
+        if (dat < min_data) min_data = adjusted_datum;
+        if (dat > max_data) max_data = adjusted_datum;
     }
 }
 #include <string>
 
 // kmeans top-level function
-std::vector<float_type> kmeans(std::vector<float_type> &data, size_t k, size_t max_iterations) {
+std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t k, size_t max_iterations) {
     uint16_t radix_bins[n_radix_bins()];
 
     float_type min_data, max_data;
     // location of 1-D means
     std::vector<float_type> means;
-    for (auto &radix_bin: radix_bins) {
-        radix_bin = 0;
-    }
+    means.reserve(K);
+
+    // memset clear the bins
+    memset(radix_bins, 0, sizeof(uint16_t) * n_radix_bins());
 
     preprocess_and_insert_data(data, radix_bins, min_data, max_data);
 
     // initialize means over the data points
-    means.reserve(K);
     for (int i = 0; i < K; ++i) {
         means.push_back(static_cast<float_type>(i + 1) / (K + 1) * (max_data - min_data) + min_data);
     }
-
-
-    auto t1 = std::chrono::high_resolution_clock::now();
+    // print initial means
+#ifndef NDEBUG
+    std::cout << "initial means: ";
+    for (auto mean: means) {
+        std::cout << float(mean) << " ";
+    }
+    std::cout << std::endl;
+#endif
 
     std::pair<double, float_type> update_table[K];
     bool update_valid[K];
@@ -302,7 +311,7 @@ std::vector<float_type> kmeans(std::vector<float_type> &data, size_t k, size_t m
     }
     // correct for offest in means
     for (auto &mean: means) {
-        mean += MINIMUM_DATA_VALUE;
+        mean += MINIMUM_PERMISSIBLE_DATA_VALUE;
     }
     return means;
 }

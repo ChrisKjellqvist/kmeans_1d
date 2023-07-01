@@ -9,6 +9,6 @@
 #include <vector>
 #include <tuple>
 
-std::vector<float_type> kmeans(std::vector<float_type> &data, size_t k, size_t max_iterations);
+std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t k, size_t max_iterations);
 
 #endif //KMEANS_HACKING_KMEANS_H

@@ -21,7 +21,7 @@ radix_t float2radix(float_type f) {
 }
 
 float_type radix2float_exact(radix_t radix) {
-    return radix2float(radix) + MINIMUM_DATA_VALUE;
+    return radix2float(radix) + MINIMUM_PERMISSIBLE_DATA_VALUE;
 }
 
 float_type radix2float(radix_t f) {

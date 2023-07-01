@@ -8,14 +8,16 @@
 double get_error(const std::vector<float_type> &means, const std::vector<float_type> &data) {
     double error = 0;
     for (auto &dat: data) {
-        double min_dist = 1e9;
+        // find closest mean and add error
+        double smallest_error = 1e20;
         for (auto &mean: means) {
-            auto dist = abs((double)dat - (double)mean);
-            if (dist < min_dist) {
-                min_dist = dist;
+            auto dist = (double)dat - (double)mean;
+            auto t_error = dist * dist;
+            if (t_error < smallest_error) {
+                smallest_error = t_error;
             }
         }
-        error += min_dist;
+        error += smallest_error;
     }
     return error / (double)data.size();
 }
@@ -26,36 +28,48 @@ int main() {
     // make random data
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::normal_distribution<float> dis(18, 1);
+    // generate random bools
+    std::uniform_real_distribution<float> booler(0, 1);
+    float center1 = 18, center2 = 45;
+    float std_dev1 = 2, std_dev2 = 2;
+    std::normal_distribution<float> dis1(center1, std_dev1);
+    std::normal_distribution<float> dis2(center2, std_dev2);
     int num_not_converged = 0;
     int num_iterations_total = 0;
     double average_error = 0;
 
-#ifndef HAS_FP16
     // sanity check the error propagation of the radix conversion
     for (int i = 0; i < 1000; ++i) {
-        auto f = abs(dis(gen));
+        auto f = dis1(gen) - MINIMUM_PERMISSIBLE_DATA_VALUE;
         auto r = float2radix(f);
         auto f2 = radix2float(r);
         if (abs(f - f2) > 0.1) {
-            std::cout << "error in radix conversion: " << f << " " << r << " " << f2 <<  std::endl;
+            std::cout << "error in radix conversion: " << f << " " << r << " " << float(f2) <<  std::endl;
             throw std::runtime_error("error in radix conversion");
         }
     }
 
     std::cerr << "Passed sanity checks" << std::endl;
-#endif
 
     std::vector<float_type> data;
     // generate data
     data.reserve(N_DATAS);
     for (int i = 0; i < N_DATAS; ++i) {
-        data.push_back((float_type) dis(gen));
+        if (booler(gen) < 0.5)
+            data.push_back((float_type) dis1(gen));
+        else
+            data.push_back((float_type) dis2(gen));
     }
 
     // total execution time counter
     unsigned long long total_time = 0;
-    for (int R = 0; R < 768; ++R) {
+    for (int R = 0; R <
+#ifndef NDEBUG
+            1
+#else
+    768
+#endif
+    ; ++R) {
         auto start = std::chrono::high_resolution_clock::now();
         auto means = kmeans(data, 16, 3000);
         auto end = std::chrono::high_resolution_clock::now();
@@ -63,6 +77,15 @@ int main() {
 
         // check if converged
         average_error += get_error(means, data);
+        // print means
+#ifndef NDEBUG
+        std::cout << "means: ";
+        for (auto &mean: means) {
+            std::cout << float(mean) << " ";
+        }
+        std::cout << std::endl;
+        std::cout << "Inspect above means for centering around " << center1 << " and " << center2 << std::endl;
+#endif
     }
 
     std::cout << "average error: " << average_error / 768.0 << std::endl;
