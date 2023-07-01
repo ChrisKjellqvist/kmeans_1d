@@ -92,7 +92,7 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, std::vector<float_ty
             c += radix_bins[i] * square((double)radix2float(i));
         }
         auto zero = -b / (2 * a);
-        return std::make_unique<result_ty>(std::pair(a * square(zero) + b * zero + c, float_type(zero)));
+        return std::make_unique<result_ty>(a * square(zero) + b * zero + c, float_type(zero));
     }
     float_type bottom, top;
     if (k == 0) {
@@ -222,7 +222,7 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, std::vector<float_ty
             right = right_disc;
         }
     }
-    return std::make_unique<result_ty>(std::pair(original_score - best_zero_mag, float_type(best_zero_position)));
+    return std::make_unique<result_ty>(original_score - best_zero_mag, float_type(best_zero_position));
 }
 
 
