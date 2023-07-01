@@ -271,13 +271,12 @@ std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t K, si
     std::cout << std::endl;
 #endif
 
-    std::pair<double, float_type> update_table[K];
-    bool update_valid[K];
+    std::tuple<double, float_type, bool> update_table[K];
     for (int i = 0; i < K; ++i) {
         auto update = get_mean_insert(i, K, means, radix_bins, min_data, max_data);
-        update_table[i].first = update.first;
-        update_table[i].second = update.second;
-        update_valid[i] = true;
+        std::get<0>(update_table[i]) = update.first;
+        std::get<1>(update_table[i]) = update.second;
+        std::get<2>(update_table[i]) = true;
     }
 
     int iterations = 0;
@@ -288,25 +287,30 @@ std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t K, si
         iterations++;
         int min_idx = 0;
         for (int j = 0; j < K; ++j) {
-            if (update_table[j].first > min_improvement && update_valid[j]) {
-                min_improvement = update_table[j].first;
+            if (std::get<2>(update_table[j]) && std::get<0>(update_table[j]) > min_improvement) {
+                min_improvement = std::get<0>(update_table[j]);
                 min_idx = j;
             }
         }
-        if (min_improvement == 0 || means[min_idx] == update_table[min_idx].second) {
+        if (min_improvement == 0 || means[min_idx] == std::get<1>(update_table[min_idx])) {
             break;
         }
         // move the mean
-        means[min_idx] = update_table[min_idx].second;
-        update_valid[min_idx] = false;
+        means[min_idx] = std::get<1>(update_table[min_idx]);
+        // invalidate the update table entry
+        std::get<2>(update_table[min_idx]) = false;
         // update the update table. First update neighbors, then update the moved mean
         if (min_idx > 0) {
-            update_table[min_idx - 1] = get_mean_insert(min_idx - 1, K, means, radix_bins, min_data, max_data);
-            update_valid[min_idx - 1] = update_table[min_idx - 1].second != means[min_idx - 1];
+            auto update = get_mean_insert(min_idx - 1, K, means, radix_bins, min_data, max_data);
+            std::get<0>(update_table[min_idx - 1]) = update.first;
+            std::get<1>(update_table[min_idx - 1]) = update.second;
+            std::get<2>(update_table[min_idx - 1]) = update.second != means[min_idx - 1];
         }
         if (min_idx < K - 1) {
-            update_table[min_idx + 1] = get_mean_insert(min_idx + 1, K, means, radix_bins, min_data, max_data);
-            update_valid[min_idx + 1] = update_table[min_idx + 1].second != means[min_idx + 1];
+            auto update = get_mean_insert(min_idx + 1, K, means, radix_bins, min_data, max_data);
+            std::get<0>(update_table[min_idx + 1]) = update.first;
+            std::get<1>(update_table[min_idx + 1]) = update.second;
+            std::get<2>(update_table[min_idx + 1]) = update.second != means[min_idx + 1];
         }
         if (iterations > max_iterations) {
             throw std::runtime_error("Failed to converge in " + std::to_string(max_iterations) + " iterations");
