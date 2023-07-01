@@ -3,6 +3,7 @@
 #include <iostream>
 #include <vector>
 #include "util.h"
+#include <chrono>
 #include "kmeans.h"
 
 double get_error(const std::vector<float_type> &means, const std::vector<float_type> &data) {
