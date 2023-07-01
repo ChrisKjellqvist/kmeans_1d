@@ -274,7 +274,9 @@ std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t K, si
     std::pair<double, float_type> update_table[K];
     bool update_valid[K];
     for (int i = 0; i < K; ++i) {
-        update_table[i] = get_mean_insert(i, K, means, radix_bins, min_data, max_data);
+        auto update = get_mean_insert(i, K, means, radix_bins, min_data, max_data);
+        update_table[i].first = update.first;
+        update_table[i].second = update.second;
         update_valid[i] = true;
     }
 
