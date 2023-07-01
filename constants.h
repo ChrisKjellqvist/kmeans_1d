@@ -7,6 +7,14 @@
 
 #define K 16
 #define N_DATAS 50000
+
+//#ifdef __ARM64_ARCH_8__
+//#define HAS_FP16
+//using float_type = __fp16;
+//#else
+using float_type = float;
+//#endif
+
 #define MINIMUM_DATA_VALUE __fp16(0)
 
 #endif //KMEANS_HACKING_CONSTANTS_H
