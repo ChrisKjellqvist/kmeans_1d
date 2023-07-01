@@ -74,7 +74,7 @@
 
 // there will certainly be some bad corner cases if k ~ N, shouldn't occur otherwise, though
 // In the larger algorithm, we're going to spoof removing the k-mean and then re-placing it in the same interval
-std::pair<double, float_type> get_mean_insert(int k, int K, std::vector<float_type> &means, const uint16_t *radix_bins, float_type min_data, float_type max_data) {
+std::pair<double, float_type> get_mean_insert(int k, size_t K, std::vector<float_type> &means, const uint16_t *radix_bins, float_type min_data, float_type max_data) {
     // bottom and top are the minimum and maximum logical places we can place k
     //
     // if we are considering a mean that is between other means, then we only consider placing it anywhere between
