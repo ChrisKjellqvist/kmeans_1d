@@ -20,8 +20,6 @@ radix_t float2radix(float_type f);
 
 float_type radix2float(radix_t radix);
 
-float_type radix2float_exact(radix_t radix); // NOLINT
-
 constexpr uint32_t n_radix_bins() {
     return 1 << (8 * sizeof(radix_t));
 }

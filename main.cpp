@@ -2,6 +2,8 @@
 
 #include <iostream>
 #include <vector>
+#include <random>
+#include <chrono>
 #include "util.h"
 #include "kmeans.h"
 
@@ -20,7 +22,6 @@ double get_error(const std::vector<float_type> &means, const std::vector<float_t
     return error / (double)data.size();
 }
 
-#include <random>
 
 int main() {
     // make random data

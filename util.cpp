@@ -5,6 +5,7 @@
 #include "util.h"
 
 // we want to organize floats by radix so that the index represented by the radix still represents a float ordering
+
 radix_t float2radix(float_type f) {
 #ifdef HAS_FP16
     return reinterpret_cast<radix_t&>(f);
@@ -18,10 +19,6 @@ radix_t float2radix(float_type f) {
     exp = my_max(exp - 127 + 15, 0);
     return (exp << 10) |  mantissa;
 #endif
-}
-
-float_type radix2float_exact(radix_t radix) {
-    return radix2float(radix) + MINIMUM_DATA_VALUE;
 }
 
 float_type radix2float(radix_t f) {

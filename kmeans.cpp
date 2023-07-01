@@ -226,8 +226,10 @@ std::pair<double, float_type> get_mean_insert(int k, std::vector<float_type> &me
 void preprocess_and_insert_data(std::vector<float_type> &fpar, uint16_t *radix_bins, float_type &min_data, float_type &max_data) {
     min_data = fpar[0];
     max_data = fpar[0];
+    // find minimum data
+    for (auto &dat: fpar) if (dat < min_data) min_data = dat;
     for (auto &dat: fpar) {
-        auto radix = float2radix(dat - MINIMUM_DATA_VALUE);
+        auto radix = float2radix(dat - min_data);
         if (radix_bins[radix] == (1 << (sizeof(radix_t) * 8)) - 1) {
             std::cout << "radix bin overflow" << std::endl;
             throw std::runtime_error("radix bin overflow");
@@ -257,9 +259,6 @@ std::vector<float_type> kmeans(std::vector<float_type> &data, size_t k, size_t m
     for (int i = 0; i < K; ++i) {
         means.push_back(static_cast<float_type>(i + 1) / (K + 1) * (max_data - min_data) + min_data);
     }
-
-
-    auto t1 = std::chrono::high_resolution_clock::now();
 
     std::pair<double, float_type> update_table[K];
     bool update_valid[K];
@@ -302,7 +301,7 @@ std::vector<float_type> kmeans(std::vector<float_type> &data, size_t k, size_t m
     }
     // correct for offest in means
     for (auto &mean: means) {
-        mean += MINIMUM_DATA_VALUE;
+        mean += min_data;
     }
     return means;
 }
