@@ -5,6 +5,7 @@
 #include "kmeans.h"
 #include <iostream>
 #include <cstring>
+#include <memory>
 
 /**
  * Algorithm Description:
@@ -74,7 +75,8 @@
 
 // there will certainly be some bad corner cases if k ~ N, shouldn't occur otherwise, though
 // In the larger algorithm, we're going to spoof removing the k-mean and then re-placing it in the same interval
-std::pair<double, float_type> get_mean_insert(int k, size_t K, std::vector<float_type> &means, const uint16_t *radix_bins, float_type min_data, float_type max_data) {
+using result_ty = std::pair<double, float_type>;
+std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, std::vector<float_type> &means, const uint16_t *radix_bins, float_type min_data, float_type max_data) {
     // bottom and top are the minimum and maximum logical places we can place k
     //
     // if we are considering a mean that is between other means, then we only consider placing it anywhere between
@@ -90,7 +92,7 @@ std::pair<double, float_type> get_mean_insert(int k, size_t K, std::vector<float
             c += radix_bins[i] * square((double)radix2float(i));
         }
         auto zero = -b / (2 * a);
-        return {a * square(zero) + b * zero + c, float_type(zero)};
+        return std::make_unique<result_ty>(std::pair(a * square(zero) + b * zero + c, float_type(zero)));
     }
     float_type bottom, top;
     if (k == 0) {
@@ -220,7 +222,7 @@ std::pair<double, float_type> get_mean_insert(int k, size_t K, std::vector<float
             right = right_disc;
         }
     }
-    return {original_score - best_zero_mag, float_type(best_zero_position)};
+    return std::make_unique<result_ty>(std::pair(original_score - best_zero_mag, float_type(best_zero_position)));
 }
 
 
@@ -274,8 +276,8 @@ std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t K, si
     std::tuple<double, float_type, bool> update_table[K];
     for (int i = 0; i < K; ++i) {
         auto update = get_mean_insert(i, K, means, radix_bins, min_data, max_data);
-        std::get<0>(update_table[i]) = update.first;
-        std::get<1>(update_table[i]) = update.second;
+        std::get<0>(update_table[i]) = update->first;
+        std::get<1>(update_table[i]) = update->second;
         std::get<2>(update_table[i]) = true;
     }
 
@@ -302,15 +304,15 @@ std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t K, si
         // update the update table. First update neighbors, then update the moved mean
         if (min_idx > 0) {
             auto update = get_mean_insert(min_idx - 1, K, means, radix_bins, min_data, max_data);
-            std::get<0>(update_table[min_idx - 1]) = update.first;
-            std::get<1>(update_table[min_idx - 1]) = update.second;
-            std::get<2>(update_table[min_idx - 1]) = update.second != means[min_idx - 1];
+            std::get<0>(update_table[min_idx - 1]) = update->first;
+            std::get<1>(update_table[min_idx - 1]) = update->second;
+            std::get<2>(update_table[min_idx - 1]) = update->second != means[min_idx - 1];
         }
         if (min_idx < K - 1) {
             auto update = get_mean_insert(min_idx + 1, K, means, radix_bins, min_data, max_data);
-            std::get<0>(update_table[min_idx + 1]) = update.first;
-            std::get<1>(update_table[min_idx + 1]) = update.second;
-            std::get<2>(update_table[min_idx + 1]) = update.second != means[min_idx + 1];
+            std::get<0>(update_table[min_idx + 1]) = update->first;
+            std::get<1>(update_table[min_idx + 1]) = update->second;
+            std::get<2>(update_table[min_idx + 1]) = update->second != means[min_idx + 1];
         }
         if (iterations > max_iterations) {
             throw std::runtime_error("Failed to converge in " + std::to_string(max_iterations) + " iterations");
