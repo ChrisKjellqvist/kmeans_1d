@@ -218,8 +218,8 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<do
             right = right_disc;
         }
     }
-    if (abs(means[k] - best_zero_position) == 0) {
-        if (abs(original_score - best_zero_mag) != 0) {
+    if (means[k] == best_zero_position) {
+        if (original_score != best_zero_mag) {
             throw std::runtime_error("unexpected error 0");
         }
     }
