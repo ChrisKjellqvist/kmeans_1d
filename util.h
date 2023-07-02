@@ -10,11 +10,17 @@
 
 #define my_max(a, b) ((a) > (b) ? (a) : (b))
 #define my_min(a, b) ((a) < (b) ? (a) : (b))
-
+#define my_fabs(a) ((a) < 0 ? -(a) : (a))
 
 using radix_t = uint16_t;
+#ifdef __ARM64_ARCH_8__
+#define HAS_FP16
+using float_type = __fp16;
+#else
+using float_type = float;
+#endif
 
-#include "constants.h"
+
 
 radix_t float2radix(float_type f);
 

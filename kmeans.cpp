@@ -3,6 +3,7 @@
 //
 
 #include "kmeans.h"
+#include "constants.h"
 #include <iostream>
 #include <cstring>
 #include <memory>
@@ -84,11 +85,11 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<do
         for (int i = float2radix(min_data); i <= float2radix(max_data) + 1; ++i) {
             if (radix_bins[i] == 0) continue;
             a += radix_bins[i];
-            b -= 2 * radix_bins[i] * (double)radix2float(i);
+            b -= radix_bins[i] * (double)radix2float(i);
             c += radix_bins[i] * square((double)radix2float(i));
         }
-        auto zero = -b / (2 * a);
-        return std::make_unique<result_ty>(a * square(zero) + b * zero + c, float_type(zero));
+        auto zero = -b / (a);
+        return std::make_unique<result_ty>(a * square(zero) + 2 * b * zero + c, float_type(zero));
     }
     double bottom, top;
     if (k == 0) {
@@ -109,6 +110,8 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<do
     bool no_zero = true;
     // ax^2 + bx + c
     uint32_t a = 0;
+    // b actually stores b / 2. Because we're only adding (x - c)^2, 2xc is the only thing being added to b
+    // this ends up in wasting a mantissa bit which may end up being a problem and causing non-convergence
     double b = 0, c = 0;
 
     uint32_t top_idx, bot_idx;
@@ -128,7 +131,7 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<do
             // consider (x - datas[i])^2
             // x^2 - 2 * datas[i]x + datas[i] ^ 2
             a += radix_bins[i];
-            b -= 2 * radix_bins[i] * (double)radix2float(i);
+            b -= radix_bins[i] * (double)radix2float(i);
             c += square((double)radix2float(i)) * radix_bins[i];
         }
         for (; i < absolute_top_idx; ++i) {
@@ -163,13 +166,13 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<do
             // mean there will result in 0 points being assigned to the mean. This is _never_ optimal and will result
             // in a divide by zero error. At any rate, it's not important to consider besides for the obvious error.
             // it is also incredibly rare to have a flat portion in the middle, so this `if` will be trained unlikely
-            auto derivative_zero = (-b) / (2 * a);
+            auto derivative_zero = (-b) / (a);
             if (left <= original_mean && original_mean <= right) {
-                original_score = square((double) original_mean) * a + original_mean * b + c;
+                original_score = square((double) original_mean) * a + original_mean * 2 * b + c;
             }
-            if (derivative_zero >= left && derivative_zero <= right) {
+            if (derivative_zero >= left - EPSILON && derivative_zero <= right + EPSILON) {
                 saw_zero++;
-                double par_at_dzero = derivative_zero * derivative_zero * a + derivative_zero * b + c;
+                double par_at_dzero = derivative_zero * derivative_zero * a + derivative_zero * 2 * b + c;
                 // x, y pair
                 if (no_zero) {
                     no_zero = false;
@@ -188,7 +191,7 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<do
             // if the disc comes the left set then it's a parabola becoming flat and the ownership of this point is
             // transferred to the neighboring mean
             a -= radix_bins[bot_idx];
-            b += 2 * (double)radix2float(bot_idx) * radix_bins[bot_idx];
+            b += (double)radix2float(bot_idx) * radix_bins[bot_idx];
             c -= radix_bins[bot_idx] * square((double)radix2float(bot_idx));
             auto diff = bottom - radix2float(bot_idx);
             c += square((double)diff) * radix_bins[bot_idx];
@@ -203,7 +206,7 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<do
             // move discontinuity bounds
             // if the disc comes from the right set then it's a flat area becoming a parabola
             a += radix_bins[top_idx];
-            b -= 2 * (double)radix2float(top_idx) * radix_bins[top_idx];
+            b -= (double)radix2float(top_idx) * radix_bins[top_idx];
             c += square((double)radix2float(top_idx)) * radix_bins[top_idx];
             auto diff = radix2float(absolute_top_idx) - radix2float(top_idx);
             c -= square((double)diff) * radix_bins[top_idx];
@@ -217,6 +220,9 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<do
         } else {
             right = right_disc;
         }
+    }
+    if (saw_zero == 0) {
+        throw std::runtime_error("unexpected error 2");
     }
     // FIXME the following two checks are disabled for now
 //    if (means[k] == best_zero_position) {
@@ -311,10 +317,15 @@ std::vector<double>
         if (min_improvement == 0 || means[min_idx] == std::get<1>(update_table[min_idx])) {
             break;
         }
+#ifndef NDEBUG
+        std::cout << "mean update: " << min_idx << "(" << float(means[min_idx]) << ") -> " << float(std::get<1>(update_table[min_idx])) << " with improvement " << min_improvement << std::endl;
+#endif
         // move the mean
         means[min_idx] = std::get<1>(update_table[min_idx]);
         // invalidate the update table entry
         std::get<2>(update_table[min_idx]) = false;
+
+
         // update the update table. First update neighbors, then update the moved mean
         if (min_idx > 0) {
             auto update = get_mean_insert(min_idx - 1, K, means, radix_bins, min_data, max_data);
@@ -330,9 +341,8 @@ std::vector<double>
         }
         if (iterations > max_iterations) {
             // print out table state
-            std::cerr << "Failed to converge but this may just be a cyclical state. Carry on." << std::endl;
 #ifndef NDEBUG
-
+            std::cerr << "Failed to converge but this may just be a cyclical state. Carry on." << std::endl;
 //            std::cout << "final means: \n";
 //            for (int i = 0; i < K; ++i) {
 //                std::cout << "V(" << std::get<2>(update_table[i]) << "), current_loc: " << means[i] << ", loc (" << std::get<1>(update_table[i]) << ") improvement (" << std::get<0>(update_table[i]) << ")\n";

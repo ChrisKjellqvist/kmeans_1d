@@ -57,7 +57,8 @@ int main() {
 
     long total_time = 0;
     double total_loss = 0;
-    for (int i = 0; i < 768; i++) {
+    for (int i = 1; i < 2; i++) {
+        std::cout << "I: " << i << std::endl;
         auto sample_0 = sample.index(
                 {torch::indexing::TensorIndex(0), torch::indexing::TensorIndex(torch::indexing::Slice()),
                  torch::indexing::TensorIndex(i)});
@@ -71,7 +72,7 @@ int main() {
         for (auto &mean: means) {
             std::cout << (float)mean << " ";
         }
-        std::cout << means.size() << std::endl;
+        std::cout << std::endl;
     }
 
     // print total time in second

@@ -20,10 +20,6 @@ radix_t float2radix(float_type f) {
 #endif
 }
 
-float_type radix2float_exact(radix_t radix) {
-    return radix2float(radix) + MINIMUM_PERMISSIBLE_DATA_VALUE;
-}
-
 float_type radix2float(radix_t f) {
 #ifdef HAS_FP16
     return reinterpret_cast<float_type&>(f);
