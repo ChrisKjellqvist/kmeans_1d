@@ -264,6 +264,10 @@ std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t K, si
     for (int i = 0; i < K; ++i) {
         means.push_back(static_cast<float_type>(i + 1) / (K + 1) * (max_data - min_data) + min_data);
     }
+
+    std::cout << "SANITY2: max data: " << float(max_data) << std::endl;
+    std::cout << "SANITY2: min data: " << float(min_data) << std::endl;
+
     // print initial means
 #ifndef NDEBUG
     std::cout << "initial means: ";
