@@ -6,6 +6,7 @@
 #include "util.h"
 #include <chrono>
 #include "kmeans.h"
+#include "constants.h"
 
 double get_error(const std::vector<double> &means, const std::vector<float_type> &data) {
     double error = 0;

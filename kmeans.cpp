@@ -72,8 +72,18 @@
  * 5. Repeat steps 2-4 until the update table contains no valid updates or potential improving placements
  * 6. Return the means
  */
-using result_ty = std::pair<double, double>;
-std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<double> &means, const uint16_t *radix_bins, float_type min_data, float_type max_data) {
+struct movement {
+    double location;
+    double improvement;
+    bool valid;
+
+    movement(double location, double improvement, bool valid) : location(location), improvement(improvement),
+                                                                valid(valid) {}
+
+    explicit movement() : location(0), improvement(0), valid(false) {}
+};
+movement
+get_mean_insert(int k, size_t K, const std::vector<double> &means, const uint16_t *radix_bins, float_type min_data, float_type max_data) {
     // bottom and top are the minimum and maximum logical places we can place k
     //
     // if we are considering a mean that is between other means, then we only consider placing it anywhere between
@@ -88,8 +98,8 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<do
             b -= radix_bins[i] * (double)radix2float(i);
             c += radix_bins[i] * square((double)radix2float(i));
         }
-        auto zero = -b / (a);
-        return std::make_unique<result_ty>(a * square(zero) + 2 * b * zero + c, float_type(zero));
+        double zero = -b / (a);
+        return movement(zero, a * square(zero) + 2 * b * zero + c, true);
     }
     double bottom, top;
     if (k == 0) {
@@ -104,7 +114,7 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<do
         top = means[k + 1];
     }
 
-    auto midpoint = (top + bottom) / 2;
+    double midpoint = (top + bottom) / 2;
     uint32_t absolute_top_idx = float2radix((float_type)top);
 
     bool no_zero = true;
@@ -118,9 +128,7 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<do
     { // limit the scope of i
         top_idx = float2radix((float_type)midpoint) + 1;
         bot_idx = float2radix((float_type)bottom);
-        while (radix_bins[bot_idx] == 0) {
-            bot_idx++;
-        }
+        while (radix_bins[bot_idx] == 0) bot_idx++;
         while (radix_bins[top_idx] == 0 && top_idx <= absolute_top_idx) top_idx++;
 
         size_t i = bot_idx;
@@ -142,8 +150,8 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<do
             c += square(d) * radix_bins[i];
         }
     }
-    auto left_disc = bottom + 2 * (radix2float(bot_idx) - bottom);
-    auto right_disc = top - 2 * (top - radix2float(top_idx));
+    double left_disc = bottom + 2 * (radix2float(bot_idx) - bottom);
+    double right_disc = top - 2 * (top - radix2float(top_idx));
     double left = bottom, right;
     // first discontinuity
     if (left_disc < right_disc) {
@@ -222,7 +230,11 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<do
         }
     }
     if (saw_zero == 0) {
-        throw std::runtime_error("unexpected error 2");
+        // no data points in this section...
+#ifndef NDEBUG
+        std::cerr << "no data points in this section" << std::endl;
+#endif
+        return movement(0, original_mean, false);
     }
     // FIXME the following two checks are disabled for now
 //    if (means[k] == best_zero_position) {
@@ -237,7 +249,9 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<do
 //        throw std::runtime_error("unexpected error 1");
 //    }
 
-    return std::make_unique<result_ty>(original_score - best_zero_mag, best_zero_position);
+    return movement(best_zero_position,
+                    original_score - best_zero_mag,
+                    true);
 }
 
 
@@ -293,52 +307,43 @@ std::vector<double>
     std::cout << std::endl;
 #endif
 
-    std::tuple<double, double, bool> update_table[K];
+    bool movement_candidate[K];
     for (int i = 0; i < K; ++i) {
-        auto update = get_mean_insert(i, K, means, radix_bins, min_data, max_data);
-        std::get<0>(update_table[i]) = update->first;
-        std::get<1>(update_table[i]) = update->second;
-        std::get<2>(update_table[i]) = true;
+        movement_candidate[i] = true;
     }
 
     int iterations = 0;
     // then refine
     while (true) {
         // find the best mean to move
-        double min_improvement = 0;
-        iterations++;
-        int min_idx = 0;
-        for (int j = 0; j < K; ++j) {
-            if (std::get<2>(update_table[j]) && std::get<0>(update_table[j]) > min_improvement) {
-                min_improvement = std::get<0>(update_table[j]);
-                min_idx = j;
+        bool moved_something = false;
+        for (int i = 0; i < K; ++i) {
+            if (movement_candidate[i]) {
+                auto movement_result = get_mean_insert(i, K, means, radix_bins, min_data, max_data);
+                movement_candidate[i] = false;
+                if (movement_result.valid && movement_result.improvement > 0) {
+                    moved_something = true;
+#ifndef NDEBUG
+                    std::cerr << "moved mean " << i << " from " << means[i] << " to " << movement_result.location << " with improvement " << movement_result.improvement << std::endl;
+#endif
+                    means[i] = movement_result.location;
+                    if (i > 0) {
+                        movement_candidate[i - 1] = true;
+                    }
+                    if (i < K - 1) {
+                        movement_candidate[i + 1] = true;
+                    }
+                } else {
+#ifndef NDEBUG
+                    std::cerr << "mean " << i << " at " << means[i] << " is already optimal" << std::endl;
+#endif
+                }
             }
         }
-        if (min_improvement == 0 || means[min_idx] == std::get<1>(update_table[min_idx])) {
+        if (!moved_something) {
             break;
         }
-#ifndef NDEBUG
-        std::cout << "mean update: " << min_idx << "(" << float(means[min_idx]) << ") -> " << float(std::get<1>(update_table[min_idx])) << " with improvement " << min_improvement << std::endl;
-#endif
-        // move the mean
-        means[min_idx] = std::get<1>(update_table[min_idx]);
-        // invalidate the update table entry
-        std::get<2>(update_table[min_idx]) = false;
-
-
-        // update the update table. First update neighbors, then update the moved mean
-        if (min_idx > 0) {
-            auto update = get_mean_insert(min_idx - 1, K, means, radix_bins, min_data, max_data);
-            std::get<0>(update_table[min_idx - 1]) = update->first;
-            std::get<1>(update_table[min_idx - 1]) = update->second;
-            std::get<2>(update_table[min_idx - 1]) = update->second != means[min_idx - 1];
-        }
-        if (min_idx < K - 1) {
-            auto update = get_mean_insert(min_idx + 1, K, means, radix_bins, min_data, max_data);
-            std::get<0>(update_table[min_idx + 1]) = update->first;
-            std::get<1>(update_table[min_idx + 1]) = update->second;
-            std::get<2>(update_table[min_idx + 1]) = update->second != means[min_idx + 1];
-        }
+        iterations++;
         if (iterations > max_iterations) {
             // print out table state
 #ifndef NDEBUG
@@ -354,22 +359,6 @@ std::vector<double>
             break;
         }
     }
-    // print out final update table if in debug mode
-#ifndef NDEBUG
-    std::cout << "final means: \n";
-    for (int i = 0; i < K; ++i) {
-        std::cout << "V(" << std::get<2>(update_table[i]) << "), current_loc: " << means[i] << ", loc (" << std::get<1>(update_table[i]) << ") improvement (" << std::get<0>(update_table[i]) << ")\n";
-    }
-    std::cout << std::endl;
-    // do a final sweep to ensure convergence
-    std::cout << "FINAL SWEEP START --------------------------\n";
-    for (int i = 0; i < K; ++i) {
-        auto update = get_mean_insert(i, K, means, radix_bins, min_data, max_data);
-        std::cout << "current_loc: " << means[i] << ", loc (" << update->second << ") improvement (" << update->first << ")\n";
-    }
-    std::cout << "FINAL SWEEP END ----------------------------\n";
-#endif
-
     // correct for offest in means
     for (auto &mean: means) {
         mean += MINIMUM_PERMISSIBLE_DATA_VALUE;

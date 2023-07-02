@@ -13,6 +13,7 @@
 #define my_fabs(a) ((a) < 0 ? -(a) : (a))
 
 using radix_t = uint16_t;
+
 #ifdef __ARM64_ARCH_8__
 #define HAS_FP16
 using float_type = __fp16;
@@ -20,11 +21,9 @@ using float_type = __fp16;
 using float_type = float;
 #endif
 
-
-
 radix_t float2radix(float_type f);
 
-float_type radix2float(radix_t radix);
+double radix2float(radix_t radix);
 
 constexpr uint32_t n_radix_bins() {
     return 1 << (8 * sizeof(radix_t));

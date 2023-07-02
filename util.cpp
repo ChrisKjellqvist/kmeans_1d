@@ -20,7 +20,7 @@ radix_t float2radix(float_type f) {
 #endif
 }
 
-float_type radix2float(radix_t f) {
+double radix2float(radix_t f) {
 #ifdef HAS_FP16
     return reinterpret_cast<float_type&>(f);
 #else
