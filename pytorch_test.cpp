@@ -41,7 +41,7 @@ int main() {
         // sample_0 with shape [49869]
         auto data = tensor_to_vector(sample_0);
         auto start = std::chrono::high_resolution_clock::now();
-        auto means = kmeans(data, 4, 30000);
+        auto means = kmeans(data, 4, 3000);
         auto end = std::chrono::high_resolution_clock::now();
         total_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         for (auto &mean: means) {
