@@ -30,7 +30,7 @@ int main() {
     double average_error = 0;
     int N_DATAS = 50000;
     std::vector<float_type> data;
-    float center1 = 18, center2 = 45;
+    float center1 = -2, center2 = 2;
     {
         std::uniform_real_distribution<float> booler(0, 1);
         float std_dev = 3;

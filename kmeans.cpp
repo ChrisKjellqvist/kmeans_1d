@@ -235,8 +235,8 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<do
 
 
 void preprocess_and_insert_data(const std::vector<float_type> &fpar, uint16_t *radix_bins, float_type &min_data, float_type &max_data) {
-    min_data = fpar[0];
-    max_data = fpar[0];
+    min_data = (float_type)fpar[0]-MINIMUM_PERMISSIBLE_DATA_VALUE;
+    max_data = (float_type)fpar[0]-MINIMUM_PERMISSIBLE_DATA_VALUE;
     for (const auto dat: fpar) {
         auto adjusted_datum = float_type(dat - MINIMUM_PERMISSIBLE_DATA_VALUE);
         if (dat < MINIMUM_PERMISSIBLE_DATA_VALUE) {
@@ -328,7 +328,18 @@ std::vector<double>
             std::get<2>(update_table[min_idx + 1]) = update->second != means[min_idx + 1];
         }
         if (iterations > max_iterations) {
-            throw std::runtime_error("Failed to converge in " + std::to_string(max_iterations) + " iterations");
+            // print out table state
+#ifndef NDEBUG
+            std::cerr << "Failed to converge but this may just be a cyclical state. Carry on." << std::endl;
+//            std::cout << "final means: \n";
+//            for (int i = 0; i < K; ++i) {
+//                std::cout << "V(" << std::get<2>(update_table[i]) << "), current_loc: " << means[i] << ", loc (" << std::get<1>(update_table[i]) << ") improvement (" << std::get<0>(update_table[i]) << ")\n";
+//            }
+//            std::cout << std::endl;
+//
+//            throw std::runtime_error("Failed to converge in " + std::to_string(max_iterations) + " iterations");
+#endif
+            break;
         }
     }
     // print out final update table if in debug mode

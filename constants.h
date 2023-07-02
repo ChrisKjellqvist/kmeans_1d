@@ -12,6 +12,6 @@ using float_type = __fp16;
 using float_type = float;
 #endif
 
-#define MINIMUM_PERMISSIBLE_DATA_VALUE float_type(-10)
+#define MINIMUM_PERMISSIBLE_DATA_VALUE float_type(-20)
 
 #endif //KMEANS_HACKING_CONSTANTS_H
