@@ -329,9 +329,8 @@ std::vector<double>
         }
         if (iterations > max_iterations) {
             // print out table state
-            std::cerr << "Failed to converge but this may just be a cyclical state. Carry on." << std::endl;
 #ifndef NDEBUG
-
+            std::cerr << "Failed to converge but this may just be a cyclical state. Carry on." << std::endl;
 //            std::cout << "final means: \n";
 //            for (int i = 0; i < K; ++i) {
 //                std::cout << "V(" << std::get<2>(update_table[i]) << "), current_loc: " << means[i] << ", loc (" << std::get<1>(update_table[i]) << ") improvement (" << std::get<0>(update_table[i]) << ")\n";
