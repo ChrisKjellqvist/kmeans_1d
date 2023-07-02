@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <vector>
+#include <random>
 #include "util.h"
 #include <chrono>
 #include "kmeans.h"
@@ -22,14 +23,10 @@ double get_error(const std::vector<double> &means, const std::vector<float_type>
     }
     return error / (double)data.size();
 }
-
-#include <random>
-
 int main() {
     // make random data
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::mt19937 gen_fixed(8);
     double average_error = 0;
     int N_DATAS = 50000;
     std::vector<float_type> data;
