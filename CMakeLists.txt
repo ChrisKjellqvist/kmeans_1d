@@ -2,10 +2,10 @@ cmake_minimum_required(VERSION 3.26)
 project(kmeans_hacking)
 
 set(CMAKE_CXX_STANDARD 20)
-
-if (APPLE)
-    add_compile_options(-Xclang -fnative-half-type)
-endif()
+#
+#if (APPLE)
+#    add_compile_options(-Xclang -fnative-half-type)
+#endif()
 
 add_executable(kmeans_hacking main.cpp util.cpp util.h constants.h kmeans.cpp kmeans.h)
 
