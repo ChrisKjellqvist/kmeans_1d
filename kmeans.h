@@ -9,6 +9,12 @@
 #include <vector>
 #include <tuple>
 
-std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t k, size_t max_iterations);
+// there will certainly be some bad corner cases if k ~ N, shouldn't occur otherwise, though
+// In the larger algorithm, we're going to spoof removing the k-mean and then re-placing it in the same interval
+std::vector<double>
+        kmeans(
+                const std::vector<float_type> &data,
+                int k,
+                size_t max_iterations);
 
 #endif //KMEANS_HACKING_KMEANS_H
