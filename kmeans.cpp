@@ -229,6 +229,7 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, std::vector<float_ty
 void preprocess_and_insert_data(const std::vector<float_type> &fpar, uint16_t *radix_bins, float_type &min_data, float_type &max_data) {
     min_data = fpar[0];
     max_data = fpar[0];
+    std::cout << "MPDV: " << MINIMUM_PERMISSIBLE_DATA_VALUE << std::endl;
     for (const auto dat: fpar) {
         auto adjusted_datum = dat - MINIMUM_PERMISSIBLE_DATA_VALUE;
         if (dat < MINIMUM_PERMISSIBLE_DATA_VALUE) {
