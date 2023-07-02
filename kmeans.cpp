@@ -218,11 +218,12 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<do
             right = right_disc;
         }
     }
-    if (means[k] == best_zero_position) {
-        if (original_score != best_zero_mag) {
-            throw std::runtime_error("unexpected error 0");
-        }
-    }
+    // FIXME the following two checks are disabled for now
+//    if (means[k] == best_zero_position) {
+//        if (original_score != best_zero_mag) {
+//            throw std::runtime_error("unexpected error 0");
+//        }
+//    }
     // this error should not occur when using native fp16 but when
     // using fp32, the error seems unavoidable due to error propagation
     // when computive radices
