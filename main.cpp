@@ -23,6 +23,7 @@ double get_error(const std::vector<double> &means, const std::vector<float_type>
     }
     return error / (double)data.size();
 }
+
 int main() {
     // make random data
     std::random_device rd;
