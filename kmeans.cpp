@@ -71,12 +71,8 @@
  * 5. Repeat steps 2-4 until the update table contains no valid updates or potential improving placements
  * 6. Return the means
  */
-
-
-// there will certainly be some bad corner cases if k ~ N, shouldn't occur otherwise, though
-// In the larger algorithm, we're going to spoof removing the k-mean and then re-placing it in the same interval
-using result_ty = std::pair<double, float_type>;
-std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, std::vector<float_type> &means, const uint16_t *radix_bins, float_type min_data, float_type max_data) {
+using result_ty = std::pair<double, double>;
+std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<double> &means, const uint16_t *radix_bins, float_type min_data, float_type max_data) {
     // bottom and top are the minimum and maximum logical places we can place k
     //
     // if we are considering a mean that is between other means, then we only consider placing it anywhere between
@@ -222,16 +218,24 @@ std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, std::vector<float_ty
             right = right_disc;
         }
     }
-    return std::make_unique<result_ty>(original_score - best_zero_mag, float_type(best_zero_position));
+    if (abs(means[k] - best_zero_position) == 0) {
+        if (abs(original_score - best_zero_mag) != 0) {
+            throw std::runtime_error("unexpected error 0");
+        }
+    }
+    if (original_score < best_zero_mag) {
+        throw std::runtime_error("unexpected error 1");
+    }
+
+    return std::make_unique<result_ty>(original_score - best_zero_mag, best_zero_position);
 }
 
 
 void preprocess_and_insert_data(const std::vector<float_type> &fpar, uint16_t *radix_bins, float_type &min_data, float_type &max_data) {
     min_data = fpar[0];
     max_data = fpar[0];
-    std::cout << "MPDV: " << MINIMUM_PERMISSIBLE_DATA_VALUE << std::endl;
     for (const auto dat: fpar) {
-        auto adjusted_datum = dat - MINIMUM_PERMISSIBLE_DATA_VALUE;
+        auto adjusted_datum = float_type(dat - MINIMUM_PERMISSIBLE_DATA_VALUE);
         if (dat < MINIMUM_PERMISSIBLE_DATA_VALUE) {
             throw std::runtime_error("data value (" + std::to_string(float(dat)) + ") smaller than minimum permissible data value (" + std::to_string(float(MINIMUM_PERMISSIBLE_DATA_VALUE)) + ")");
         }
@@ -248,12 +252,16 @@ void preprocess_and_insert_data(const std::vector<float_type> &fpar, uint16_t *r
 #include <string>
 
 // kmeans top-level function
-std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t K, size_t max_iterations) {
+std::vector<double>
+        kmeans(
+                const std::vector<float_type> &data,
+                int K,
+                size_t max_iterations) {
     uint16_t radix_bins[n_radix_bins()];
 
     float_type min_data, max_data;
     // location of 1-D means
-    std::vector<float_type> means;
+    std::vector<double> means;
     means.reserve(K);
 
     // memset clear the bins
@@ -263,11 +271,8 @@ std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t K, si
 
     // initialize means over the data points
     for (int i = 0; i < K; ++i) {
-        means.push_back(static_cast<float_type>(i + 1) / (K + 1) * (max_data - min_data) + min_data);
+        means.push_back(double(i + 1) / (K + 1) * (max_data - min_data) + min_data);
     }
-
-    std::cout << "SANITY2: max data: " << float(max_data) << std::endl;
-    std::cout << "SANITY2: min data: " << float(min_data) << std::endl;
 
     // print initial means
 #ifndef NDEBUG
@@ -278,7 +283,7 @@ std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t K, si
     std::cout << std::endl;
 #endif
 
-    std::tuple<double, float_type, bool> update_table[K];
+    std::tuple<double, double, bool> update_table[K];
     for (int i = 0; i < K; ++i) {
         auto update = get_mean_insert(i, K, means, radix_bins, min_data, max_data);
         std::get<0>(update_table[i]) = update->first;
@@ -323,6 +328,22 @@ std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t K, si
             throw std::runtime_error("Failed to converge in " + std::to_string(max_iterations) + " iterations");
         }
     }
+    // print out final update table if in debug mode
+#ifndef NDEBUG
+    std::cout << "final means: \n";
+    for (int i = 0; i < K; ++i) {
+        std::cout << "V(" << std::get<2>(update_table[i]) << "), current_loc: " << means[i] << ", loc (" << std::get<1>(update_table[i]) << ") improvement (" << std::get<0>(update_table[i]) << ")\n";
+    }
+    std::cout << std::endl;
+    // do a final sweep to ensure convergence
+    std::cout << "FINAL SWEEP START --------------------------\n";
+    for (int i = 0; i < K; ++i) {
+        auto update = get_mean_insert(i, K, means, radix_bins, min_data, max_data);
+        std::cout << "current_loc: " << means[i] << ", loc (" << update->second << ") improvement (" << update->first << ")\n";
+    }
+    std::cout << "FINAL SWEEP END ----------------------------\n";
+#endif
+
     // correct for offest in means
     for (auto &mean: means) {
         mean += MINIMUM_PERMISSIBLE_DATA_VALUE;

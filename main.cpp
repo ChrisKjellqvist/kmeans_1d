@@ -6,7 +6,7 @@
 #include <chrono>
 #include "kmeans.h"
 
-double get_error(const std::vector<float_type> &means, const std::vector<float_type> &data) {
+double get_error(const std::vector<double> &means, const std::vector<float_type> &data) {
     double error = 0;
     for (auto &dat: data) {
         // find closest mean and add error
@@ -38,7 +38,6 @@ int main() {
         std::uniform_real_distribution<float> booler(0, 1);
         float std_dev = 3;
         std::normal_distribution<float> dis1(center1, std_dev), dis2(center2, std_dev);
-
         // sanity check the error propagation of the radix conversion
         for (int i = 0; i < 1000; ++i) {
             auto f = dis1(gen) - MINIMUM_PERMISSIBLE_DATA_VALUE;
@@ -54,10 +53,10 @@ int main() {
         // generate data
         data.reserve(N_DATAS);
         for (int i = 0; i < N_DATAS; ++i) {
-            if (booler(gen_fixed) < 0.5)
-                data.push_back((float_type) dis1(gen_fixed));
+            if (booler(gen) < 0.5)
+                data.push_back((float_type) dis1(gen));
             else
-                data.push_back((float_type) dis2(gen_fixed));
+                data.push_back((float_type) dis2(gen));
         }
     }
 
