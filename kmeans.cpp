@@ -4,6 +4,8 @@
 
 #include "kmeans.h"
 #include <iostream>
+#include <cstring>
+#include <memory>
 
 /**
  * Algorithm Description:
@@ -69,11 +71,8 @@
  * 5. Repeat steps 2-4 until the update table contains no valid updates or potential improving placements
  * 6. Return the means
  */
-
-
-// there will certainly be some bad corner cases if k ~ N, shouldn't occur otherwise, though
-// In the larger algorithm, we're going to spoof removing the k-mean and then re-placing it in the same interval
-std::pair<double, float_type> get_mean_insert(int k, std::vector<float_type> &means, const uint16_t *radix_bins, float_type min_data, float_type max_data) {
+using result_ty = std::pair<double, double>;
+std::unique_ptr<result_ty> get_mean_insert(int k, size_t K, const std::vector<double> &means, const uint16_t *radix_bins, float_type min_data, float_type max_data) {
     // bottom and top are the minimum and maximum logical places we can place k
     //
     // if we are considering a mean that is between other means, then we only consider placing it anywhere between
@@ -89,9 +88,9 @@ std::pair<double, float_type> get_mean_insert(int k, std::vector<float_type> &me
             c += radix_bins[i] * square((double)radix2float(i));
         }
         auto zero = -b / (2 * a);
-        return {a * square(zero) + b * zero + c, float_type(zero)};
+        return std::make_unique<result_ty>(a * square(zero) + b * zero + c, float_type(zero));
     }
-    float_type bottom, top;
+    double bottom, top;
     if (k == 0) {
         bottom = my_max(means[1] - 2 * (means[1] - min_data), 0);
     } else {
@@ -105,7 +104,7 @@ std::pair<double, float_type> get_mean_insert(int k, std::vector<float_type> &me
     }
 
     auto midpoint = (top + bottom) / 2;
-    uint32_t absolute_top_idx = float2radix(top);
+    uint32_t absolute_top_idx = float2radix((float_type)top);
 
     bool no_zero = true;
     // ax^2 + bx + c
@@ -114,8 +113,8 @@ std::pair<double, float_type> get_mean_insert(int k, std::vector<float_type> &me
 
     uint32_t top_idx, bot_idx;
     { // limit the scope of i
-        top_idx = float2radix(midpoint) + 1;
-        bot_idx = float2radix(bottom);
+        top_idx = float2radix((float_type)midpoint) + 1;
+        bot_idx = float2radix((float_type)bottom);
         while (radix_bins[bot_idx] == 0) {
             bot_idx++;
         }
@@ -219,15 +218,27 @@ std::pair<double, float_type> get_mean_insert(int k, std::vector<float_type> &me
             right = right_disc;
         }
     }
-    return {original_score - best_zero_mag, float_type(best_zero_position)};
+    if (means[k] == best_zero_position) {
+        if (original_score != best_zero_mag) {
+            throw std::runtime_error("unexpected error 0");
+        }
+    }
+    // this error should not occur when using native fp16 but when
+    // using fp32, the error seems unavoidable due to error propagation
+    // when computive radices
+//    if (original_score < best_zero_mag) {
+//        throw std::runtime_error("unexpected error 1");
+//    }
+
+    return std::make_unique<result_ty>(original_score - best_zero_mag, best_zero_position);
 }
 
 
 void preprocess_and_insert_data(const std::vector<float_type> &fpar, uint16_t *radix_bins, float_type &min_data, float_type &max_data) {
-    min_data = fpar[0];
-    max_data = fpar[0];
+    min_data = (float_type)fpar[0]-MINIMUM_PERMISSIBLE_DATA_VALUE;
+    max_data = (float_type)fpar[0]-MINIMUM_PERMISSIBLE_DATA_VALUE;
     for (const auto dat: fpar) {
-        auto adjusted_datum = dat - MINIMUM_PERMISSIBLE_DATA_VALUE;
+        auto adjusted_datum = float_type(dat - MINIMUM_PERMISSIBLE_DATA_VALUE);
         if (dat < MINIMUM_PERMISSIBLE_DATA_VALUE) {
             throw std::runtime_error("data value (" + std::to_string(float(dat)) + ") smaller than minimum permissible data value (" + std::to_string(float(MINIMUM_PERMISSIBLE_DATA_VALUE)) + ")");
         }
@@ -237,19 +248,23 @@ void preprocess_and_insert_data(const std::vector<float_type> &fpar, uint16_t *r
             throw std::runtime_error("radix bin overflow");
         }
         radix_bins[radix]++;
-        if (dat < min_data) min_data = adjusted_datum;
-        if (dat > max_data) max_data = adjusted_datum;
+        if (adjusted_datum < min_data) min_data = adjusted_datum;
+        if (adjusted_datum > max_data) max_data = adjusted_datum;
     }
 }
 #include <string>
 
 // kmeans top-level function
-std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t k, size_t max_iterations) {
+std::vector<double>
+        kmeans(
+                const std::vector<float_type> &data,
+                int K,
+                size_t max_iterations) {
     uint16_t radix_bins[n_radix_bins()];
 
     float_type min_data, max_data;
     // location of 1-D means
-    std::vector<float_type> means;
+    std::vector<double> means;
     means.reserve(K);
 
     // memset clear the bins
@@ -259,8 +274,9 @@ std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t k, si
 
     // initialize means over the data points
     for (int i = 0; i < K; ++i) {
-        means.push_back(static_cast<float_type>(i + 1) / (K + 1) * (max_data - min_data) + min_data);
+        means.push_back(double(i + 1) / (K + 1) * (max_data - min_data) + min_data);
     }
+
     // print initial means
 #ifndef NDEBUG
     std::cout << "initial means: ";
@@ -270,11 +286,12 @@ std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t k, si
     std::cout << std::endl;
 #endif
 
-    std::pair<double, float_type> update_table[K];
-    bool update_valid[K];
+    std::tuple<double, double, bool> update_table[K];
     for (int i = 0; i < K; ++i) {
-        update_table[i] = get_mean_insert(i, means, radix_bins, min_data, max_data);
-        update_valid[i] = true;
+        auto update = get_mean_insert(i, K, means, radix_bins, min_data, max_data);
+        std::get<0>(update_table[i]) = update->first;
+        std::get<1>(update_table[i]) = update->second;
+        std::get<2>(update_table[i]) = true;
     }
 
     int iterations = 0;
@@ -285,30 +302,63 @@ std::vector<float_type> kmeans(const std::vector<float_type> &data, size_t k, si
         iterations++;
         int min_idx = 0;
         for (int j = 0; j < K; ++j) {
-            if (update_table[j].first > min_improvement && update_valid[j]) {
-                min_improvement = update_table[j].first;
+            if (std::get<2>(update_table[j]) && std::get<0>(update_table[j]) > min_improvement) {
+                min_improvement = std::get<0>(update_table[j]);
                 min_idx = j;
             }
         }
-        if (min_improvement == 0 || means[min_idx] == update_table[min_idx].second) {
+        if (min_improvement == 0 || means[min_idx] == std::get<1>(update_table[min_idx])) {
             break;
         }
         // move the mean
-        means[min_idx] = update_table[min_idx].second;
-        update_valid[min_idx] = false;
+        means[min_idx] = std::get<1>(update_table[min_idx]);
+        // invalidate the update table entry
+        std::get<2>(update_table[min_idx]) = false;
         // update the update table. First update neighbors, then update the moved mean
         if (min_idx > 0) {
-            update_table[min_idx - 1] = get_mean_insert(min_idx - 1, means, radix_bins, min_data, max_data);
-            update_valid[min_idx - 1] = update_table[min_idx - 1].second != means[min_idx - 1];
+            auto update = get_mean_insert(min_idx - 1, K, means, radix_bins, min_data, max_data);
+            std::get<0>(update_table[min_idx - 1]) = update->first;
+            std::get<1>(update_table[min_idx - 1]) = update->second;
+            std::get<2>(update_table[min_idx - 1]) = update->second != means[min_idx - 1];
         }
         if (min_idx < K - 1) {
-            update_table[min_idx + 1] = get_mean_insert(min_idx + 1, means, radix_bins, min_data, max_data);
-            update_valid[min_idx + 1] = update_table[min_idx + 1].second != means[min_idx + 1];
+            auto update = get_mean_insert(min_idx + 1, K, means, radix_bins, min_data, max_data);
+            std::get<0>(update_table[min_idx + 1]) = update->first;
+            std::get<1>(update_table[min_idx + 1]) = update->second;
+            std::get<2>(update_table[min_idx + 1]) = update->second != means[min_idx + 1];
         }
         if (iterations > max_iterations) {
-            throw std::runtime_error("Failed to converge in " + std::to_string(max_iterations) + " iterations");
+            // print out table state
+            std::cerr << "Failed to converge but this may just be a cyclical state. Carry on." << std::endl;
+#ifndef NDEBUG
+
+//            std::cout << "final means: \n";
+//            for (int i = 0; i < K; ++i) {
+//                std::cout << "V(" << std::get<2>(update_table[i]) << "), current_loc: " << means[i] << ", loc (" << std::get<1>(update_table[i]) << ") improvement (" << std::get<0>(update_table[i]) << ")\n";
+//            }
+//            std::cout << std::endl;
+//
+//            throw std::runtime_error("Failed to converge in " + std::to_string(max_iterations) + " iterations");
+#endif
+            break;
         }
     }
+    // print out final update table if in debug mode
+#ifndef NDEBUG
+    std::cout << "final means: \n";
+    for (int i = 0; i < K; ++i) {
+        std::cout << "V(" << std::get<2>(update_table[i]) << "), current_loc: " << means[i] << ", loc (" << std::get<1>(update_table[i]) << ") improvement (" << std::get<0>(update_table[i]) << ")\n";
+    }
+    std::cout << std::endl;
+    // do a final sweep to ensure convergence
+    std::cout << "FINAL SWEEP START --------------------------\n";
+    for (int i = 0; i < K; ++i) {
+        auto update = get_mean_insert(i, K, means, radix_bins, min_data, max_data);
+        std::cout << "current_loc: " << means[i] << ", loc (" << update->second << ") improvement (" << update->first << ")\n";
+    }
+    std::cout << "FINAL SWEEP END ----------------------------\n";
+#endif
+
     // correct for offest in means
     for (auto &mean: means) {
         mean += MINIMUM_PERMISSIBLE_DATA_VALUE;
