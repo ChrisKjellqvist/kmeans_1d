@@ -38,7 +38,7 @@ int main() {
         std::uniform_real_distribution<float> booler(0, 1);
         float std_dev1 = 3, std_dev2 = 3;
         std::normal_distribution<float> dis1(center1, std_dev1);
-        std::normal_distribution<float> dis2(center1, std_dev2);
+        std::normal_distribution<float> dis2(center2, std_dev2);
 
         // sanity check the error propagation of the radix conversion
         for (int i = 0; i < 1000; ++i) {
