@@ -241,8 +241,8 @@ void preprocess_and_insert_data(const std::vector<float_type> &fpar, uint16_t *r
             throw std::runtime_error("radix bin overflow");
         }
         radix_bins[radix]++;
-        if (dat < min_data) min_data = adjusted_datum;
-        if (dat > max_data) max_data = adjusted_datum;
+        if (adjusted_datum < min_data) min_data = adjusted_datum;
+        if (adjusted_datum > max_data) max_data = adjusted_datum;
     }
 }
 #include <string>
