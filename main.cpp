@@ -79,7 +79,7 @@ int main() {
     unsigned long long total_time = 0;
     for (int R = 0; R < N_TIMES; ++R) {
         auto start = std::chrono::high_resolution_clock::now();
-        auto means = kmeans(data, 16, 3000);
+        auto means = kmeans(data, 2, 3000);
         auto end = std::chrono::high_resolution_clock::now();
         total_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 

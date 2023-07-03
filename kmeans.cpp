@@ -82,8 +82,15 @@ struct movement {
 
     explicit movement() : location(0), improvement(0), valid(false) {}
 };
+
 movement
-get_mean_insert(int k, size_t K, const std::vector<double> &means, const uint16_t *radix_bins, float_type min_data, float_type max_data) {
+find_locally_optimal_placement(int k,
+                               int K,
+                               const std::vector<double> &means,
+                               const uint16_t *radix_bins,
+                               float_type min_data,
+                               float_type max_data,
+                               bool return_absolute_score) {
     // bottom and top are the minimum and maximum logical places we can place k
     //
     // if we are considering a mean that is between other means, then we only consider placing it anywhere between
@@ -95,8 +102,8 @@ get_mean_insert(int k, size_t K, const std::vector<double> &means, const uint16_
         for (int i = float2radix(min_data); i <= float2radix(max_data) + 1; ++i) {
             if (radix_bins[i] == 0) continue;
             a += radix_bins[i];
-            b -= radix_bins[i] * (double)radix2float(i);
-            c += radix_bins[i] * square((double)radix2float(i));
+            b -= radix_bins[i] * (double) radix2float(i);
+            c += radix_bins[i] * square((double) radix2float(i));
         }
         double zero = -b / (a);
         return movement(zero, a * square(zero) + 2 * b * zero + c, true);
@@ -115,7 +122,7 @@ get_mean_insert(int k, size_t K, const std::vector<double> &means, const uint16_
     }
 
     double midpoint = (top + bottom) / 2;
-    uint32_t absolute_top_idx = float2radix((float_type)top);
+    uint32_t absolute_top_idx = float2radix((float_type) top);
 
     bool no_zero = true;
     // ax^2 + bx + c
@@ -126,8 +133,8 @@ get_mean_insert(int k, size_t K, const std::vector<double> &means, const uint16_
 
     uint32_t top_idx, bot_idx;
     { // limit the scope of i
-        top_idx = float2radix((float_type)midpoint) + 1;
-        bot_idx = float2radix((float_type)bottom);
+        top_idx = float2radix((float_type) midpoint) + 1;
+        bot_idx = float2radix((float_type) bottom);
         while (radix_bins[bot_idx] == 0) bot_idx++;
         while (radix_bins[top_idx] == 0 && top_idx <= absolute_top_idx) top_idx++;
 
@@ -139,8 +146,8 @@ get_mean_insert(int k, size_t K, const std::vector<double> &means, const uint16_
             // consider (x - datas[i])^2
             // x^2 - 2 * datas[i]x + datas[i] ^ 2
             a += radix_bins[i];
-            b -= radix_bins[i] * (double)radix2float(i);
-            c += square((double)radix2float(i)) * radix_bins[i];
+            b -= radix_bins[i] * (double) radix2float(i);
+            c += square((double) radix2float(i)) * radix_bins[i];
         }
         for (; i < absolute_top_idx; ++i) {
             if (radix_bins[i] == 0) {
@@ -175,7 +182,7 @@ get_mean_insert(int k, size_t K, const std::vector<double> &means, const uint16_
             // in a divide by zero error. At any rate, it's not important to consider besides for the obvious error.
             // it is also incredibly rare to have a flat portion in the middle, so this `if` will be trained unlikely
             auto derivative_zero = (-b) / (a);
-            if (left <= original_mean && original_mean <= right) {
+            if (left <= original_mean && original_mean <= right && !return_absolute_score) {
                 original_score = square((double) original_mean) * a + original_mean * 2 * b + c;
             }
             if (derivative_zero >= left - EPSILON && derivative_zero <= right + EPSILON) {
@@ -199,10 +206,10 @@ get_mean_insert(int k, size_t K, const std::vector<double> &means, const uint16_
             // if the disc comes the left set then it's a parabola becoming flat and the ownership of this point is
             // transferred to the neighboring mean
             a -= radix_bins[bot_idx];
-            b += (double)radix2float(bot_idx) * radix_bins[bot_idx];
-            c -= radix_bins[bot_idx] * square((double)radix2float(bot_idx));
+            b += (double) radix2float(bot_idx) * radix_bins[bot_idx];
+            c -= radix_bins[bot_idx] * square((double) radix2float(bot_idx));
             auto diff = bottom - radix2float(bot_idx);
-            c += square((double)diff) * radix_bins[bot_idx];
+            c += square((double) diff) * radix_bins[bot_idx];
 
             do {
                 bot_idx++;
@@ -214,10 +221,10 @@ get_mean_insert(int k, size_t K, const std::vector<double> &means, const uint16_
             // move discontinuity bounds
             // if the disc comes from the right set then it's a flat area becoming a parabola
             a += radix_bins[top_idx];
-            b -= (double)radix2float(top_idx) * radix_bins[top_idx];
-            c += square((double)radix2float(top_idx)) * radix_bins[top_idx];
+            b -= (double) radix2float(top_idx) * radix_bins[top_idx];
+            c += square((double) radix2float(top_idx)) * radix_bins[top_idx];
             auto diff = radix2float(absolute_top_idx) - radix2float(top_idx);
-            c -= square((double)diff) * radix_bins[top_idx];
+            c -= square((double) diff) * radix_bins[top_idx];
             do {
                 top_idx++;
             } while (radix_bins[top_idx] == 0 && top_idx <= absolute_top_idx);
@@ -250,18 +257,117 @@ get_mean_insert(int k, size_t K, const std::vector<double> &means, const uint16_
 //    }
 
     return movement(best_zero_position,
-                    original_score - best_zero_mag,
+                    return_absolute_score ? best_zero_mag : original_score - best_zero_mag,
                     true);
 }
 
+bool find_global_placement(const int K,
+                           std::vector<double> &means,
+                           const uint16_t *radix_bins,
+                           const float_type min_data,
+                           const float_type max_data) {
+    // test if the mean is better placed in a different cluster
+    // We need this because we may have a situation where we reach convergence but due to the outer algorithm's
+    // local placement, reaches a local minimum that isn't globally optimal. This is particularly common when
+    // K is low
 
-void preprocess_and_insert_data(const std::vector<float_type> &fpar, uint16_t *radix_bins, float_type &min_data, float_type &max_data) {
-    min_data = (float_type)fpar[0]-MINIMUM_PERMISSIBLE_DATA_VALUE;
-    max_data = (float_type)fpar[0]-MINIMUM_PERMISSIBLE_DATA_VALUE;
+    // step 1: get the scores of each span between kmeans (and the endpoints)
+    std::vector<double> section_scores(K + 1);
+    auto start_idx = float2radix(min_data);
+    auto end_idx = float2radix(max_data);
+    double current_section_point = means[0];
+    int current_section_idx = 0;
+    // handle outlier spans
+    for (auto start_idx = float2radix(min_data); start_idx < float2radix(means[0]); start_idx++) {
+        section_scores[0] += square((double) radix2float(start_idx) - means[0]) * radix_bins[start_idx];
+    }
+    for (auto start_idx = float2radix(means[K - 1]); start_idx < float2radix(max_data); start_idx++) {
+        section_scores[K] += square((double) radix2float(start_idx) - means[K - 1]) * radix_bins[start_idx];
+    }
+    // get inner scores
+    for (int k = 0; k < K - 1; ++k) {
+        auto midpoint_idx = float2radix((means[k] + means[k + 1]) / 2);
+        for (auto start_idx = float2radix(means[k]); start_idx < midpoint_idx; start_idx++) {
+            section_scores[k] += square((double) radix2float(start_idx) - means[k]) * radix_bins[start_idx];
+        }
+        for (auto start_idx = midpoint_idx; start_idx < float2radix(means[k + 1]); start_idx++) {
+            section_scores[k] += square((double) radix2float(start_idx) - means[k + 1]) * radix_bins[start_idx];
+        }
+    }
+
+    std::vector<std::pair<int, double>> cost_to_remove_k;
+    for (int k = 0; k < K; ++k) {
+        // compute cost to remove k
+        double cost = 0;
+        if (k == 0) {
+            for (int i = float2radix(min_data); i < float2radix(means[1]); ++i) {
+                cost += square((double) radix2float(i) - means[1]) * radix_bins[i];
+            }
+        } else if (k == K - 1) {
+            for (int i = float2radix(means[K - 2]); i < float2radix(max_data); ++i) {
+                cost += square((double) radix2float(i) - means[K - 2]) * radix_bins[i];
+            }
+        } else {
+            for (int i = float2radix(means[k - 1]); i < float2radix(means[k + 1]); ++i) {
+                cost += square((double) radix2float(i) - means[k - 1]) * radix_bins[i];
+            }
+        }
+        cost -= section_scores[k];
+        cost -= section_scores[k + 1];
+        cost_to_remove_k.emplace_back(k, cost);
+    }
+    // the most promising candidates for moving are those that are the least expensive to remove
+    std::sort(cost_to_remove_k.begin(), cost_to_remove_k.end(),
+              [](const std::pair<int, double> &a, const std::pair<int, double> &b) {
+                  return a.second < b.second;
+              });
+    // while other means may be able to move, we only consider the best candidate because it is sufficient to do this
+    // otherwise, a globally optimal solution would require O(K^2) time (ignoring factors of N)
+    const auto candidate = cost_to_remove_k[0];
+    // find the best placement for this candidate
+    double best_improvement = 0;
+    int best_mean_replacement = -1;
+    double best_location = 0;
+    for (int new_placement = 0; new_placement < K; ++new_placement) {
+        if (new_placement == candidate.first) continue;
+        std::vector<double> mean_with_dummy_k;
+        mean_with_dummy_k.reserve(K);
+        for (int i = 0; i < new_placement; ++i) {
+            if (i == candidate.first) continue;
+            mean_with_dummy_k.push_back(means[i]);
+        }
+        mean_with_dummy_k.push_back(0);
+        for (int i = new_placement; i < K; ++i) {
+            if (i == candidate.first) continue;
+            mean_with_dummy_k.push_back(means[i]);
+        }
+        auto update = find_locally_optimal_placement(new_placement, K, mean_with_dummy_k,
+                                                     radix_bins, min_data, max_data, true);
+        double improvement = (section_scores[new_placement] - update.improvement) -
+                             cost_to_remove_k[candidate.first].second;
+        if (improvement > best_improvement) {
+            best_improvement = improvement;
+            best_mean_replacement = new_placement;
+            best_location = update.location;
+        }
+    }
+    if (best_mean_replacement != -1) {
+        // we found a better placement
+        means[best_mean_replacement] = best_location;
+        return true;
+    } else return false;
+}
+
+void preprocess_and_insert_data(const std::vector<float_type> &fpar, uint16_t *radix_bins, float_type &min_data,
+                                float_type &max_data) {
+    min_data = (float_type) fpar[0] - MINIMUM_PERMISSIBLE_DATA_VALUE;
+    max_data = (float_type) fpar[0] - MINIMUM_PERMISSIBLE_DATA_VALUE;
     for (const auto dat: fpar) {
         auto adjusted_datum = float_type(dat - MINIMUM_PERMISSIBLE_DATA_VALUE);
         if (dat < MINIMUM_PERMISSIBLE_DATA_VALUE) {
-            throw std::runtime_error("data value (" + std::to_string(float(dat)) + ") smaller than minimum permissible data value (" + std::to_string(float(MINIMUM_PERMISSIBLE_DATA_VALUE)) + ")");
+            throw std::runtime_error(
+                    "data value (" + std::to_string(float(dat)) + ") smaller than minimum permissible data value (" +
+                    std::to_string(float(MINIMUM_PERMISSIBLE_DATA_VALUE)) + ")");
         }
         auto radix = float2radix(adjusted_datum);
         if (radix_bins[radix] == (1 << (sizeof(radix_t) * 8)) - 1) {
@@ -273,14 +379,15 @@ void preprocess_and_insert_data(const std::vector<float_type> &fpar, uint16_t *r
         if (adjusted_datum > max_data) max_data = adjusted_datum;
     }
 }
+
 #include <string>
 
 // kmeans top-level function
 std::vector<double>
-        kmeans(
-                const std::vector<float_type> &data,
-                int K,
-                size_t max_iterations) {
+kmeans(
+        const std::vector<float_type> &data,
+        int K,
+        size_t max_iterations) {
     uint16_t radix_bins[n_radix_bins()];
 
     float_type min_data, max_data;
@@ -314,17 +421,24 @@ std::vector<double>
 
     int iterations = 0;
     // then refine
+    // TODO: refine algorithm
+    // prior algorithm maintained a table and greedily chose the next mean to update by the largest improvement
+    // this algorithm is not guaranteed to converge however, and can get stuck in a cycle of moving means back and forth
+    // This update algorithm below (although potentially inefficient) seems to converge for all inputs we've tested.
+    // Any modifications should ensure convergence on the pytorch datasets.
     while (true) {
         // find the best mean to move
         bool moved_something = false;
         for (int i = 0; i < K; ++i) {
             if (movement_candidate[i]) {
-                auto movement_result = get_mean_insert(i, K, means, radix_bins, min_data, max_data);
+                auto movement_result = find_locally_optimal_placement(i, K, means, radix_bins, min_data, max_data,
+                                                                      false);
                 movement_candidate[i] = false;
                 if (movement_result.valid && movement_result.improvement > 0) {
                     moved_something = true;
 #ifndef NDEBUG
-                    std::cerr << "moved mean " << i << " from " << means[i] << " to " << movement_result.location << " with improvement " << movement_result.improvement << std::endl;
+                    std::cerr << "moved mean " << i << " from " << means[i] << " to " << movement_result.location
+                              << " with improvement " << movement_result.improvement << std::endl;
 #endif
                     means[i] = movement_result.location;
                     if (i > 0) {
@@ -342,12 +456,16 @@ std::vector<double>
         }
         if (!moved_something) {
             break;
+            // if we have found a local minimum for local placement, test to see if we can find a better global placement
+            // if we can't, we're done
+            if (!find_global_placement(K, means, radix_bins, min_data, max_data)) {
+                break;
+            }
         }
         iterations++;
         if (iterations > max_iterations) {
             // print out table state
-#ifndef NDEBUG
-            std::cerr << "Failed to converge but this may just be a cyclical state. Carry on." << std::endl;
+            std::cerr << "Failed to converge but this may just be a cyclical state. Carrying on..." << std::endl;
 //            std::cout << "final means: \n";
 //            for (int i = 0; i < K; ++i) {
 //                std::cout << "V(" << std::get<2>(update_table[i]) << "), current_loc: " << means[i] << ", loc (" << std::get<1>(update_table[i]) << ") improvement (" << std::get<0>(update_table[i]) << ")\n";
@@ -355,7 +473,6 @@ std::vector<double>
 //            std::cout << std::endl;
 //
 //            throw std::runtime_error("Failed to converge in " + std::to_string(max_iterations) + " iterations");
-#endif
             break;
         }
     }
