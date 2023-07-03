@@ -1,7 +1,7 @@
 #include <iostream>
 #include <torch/torch.h>
-#include "constants.h"
-#include "kmeans.h"
+#include "../src/constants.h"
+#include "../src/kmeans.h"
 
 std::vector<char> get_the_bytes(std::string &filename) {
     std::ifstream input(filename, std::ios::binary);

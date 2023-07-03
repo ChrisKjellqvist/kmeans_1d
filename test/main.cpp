@@ -3,10 +3,10 @@
 #include <iostream>
 #include <vector>
 #include <random>
-#include "util.h"
+#include "../src/util.h"
 #include <chrono>
-#include "kmeans.h"
-#include "constants.h"
+#include "../src/kmeans.h"
+#include "../src/constants.h"
 
 double get_error(const std::vector<double> &means, const std::vector<float_type> &data) {
     double error = 0;
