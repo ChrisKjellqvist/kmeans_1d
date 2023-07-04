@@ -17,4 +17,13 @@ std::vector<double>
                 int k,
                 size_t max_iterations);
 
+bool find_global_placement(const int K,
+                           std::vector<double> &means,
+                           const uint16_t *radix_bins,
+                           float_type min_data,
+                           float_type max_data);
+
+void preprocess_and_insert_data(const std::vector<float_type> &fpar, uint16_t *radix_bins, float_type &min_data,
+                                float_type &max_data);
+
 #endif //KMEANS_HACKING_KMEANS_H

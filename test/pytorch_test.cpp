@@ -64,21 +64,16 @@ int main() {
 #endif
 
     for (int i = 0; i < N_DATAS; i++) {
-        std::cout << "I: " << i << std::endl;
         auto sample_0 = sample.index(
                 {torch::indexing::TensorIndex(0), torch::indexing::TensorIndex(torch::indexing::Slice()),
                  torch::indexing::TensorIndex(i)});
         // sample_0 with shape [49869]
         auto data = tensor_to_vector(sample_0);
         auto start = std::chrono::high_resolution_clock::now();
-        auto means = kmeans(data, 5, 3000);
+        auto means = kmeans(data, 8, 3000);
         auto end = std::chrono::high_resolution_clock::now();
         total_loss += compute_loss(data, means);
         total_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        for (auto &mean: means) {
-            std::cout << (float)mean << " ";
-        }
-        std::cout << "---------------------------------------------" << std::endl;
     }
 
     // print total time in second

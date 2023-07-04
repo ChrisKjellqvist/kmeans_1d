@@ -32,7 +32,7 @@ int main() {
     double average_error = 0;
     int N_DATAS = 50000;
     std::vector<float_type> data;
-    float center1 = -2, center2 = 2;
+    float center1 = -2, center2 = 8;
     {
         std::uniform_real_distribution<float> booler(0, 1);
         float std_dev = 3;
@@ -52,7 +52,8 @@ int main() {
         // generate data
         data.reserve(N_DATAS);
         for (int i = 0; i < N_DATAS; ++i) {
-            if (booler(gen) < 0.5)
+            float p = booler(gen);
+            if (p < 0.3)
                 data.push_back((float_type) dis1(gen));
             else
                 data.push_back((float_type) dis2(gen));
@@ -72,14 +73,14 @@ int main() {
 #ifndef NDEBUG
     int N_TIMES = 1;
 #else
-    int N_TIMES = 768;
+    int N_TIMES = 15000;
 #endif
 
     // total execution time counter
     unsigned long long total_time = 0;
     for (int R = 0; R < N_TIMES; ++R) {
         auto start = std::chrono::high_resolution_clock::now();
-        auto means = kmeans(data, 2, 3000);
+        auto means = kmeans(data, 5, 3000);
         auto end = std::chrono::high_resolution_clock::now();
         total_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 

@@ -285,13 +285,13 @@ bool find_global_placement(const int K,
         section_scores[K] += square((double) radix2float(start_idx) - means[K - 1]) * radix_bins[start_idx];
     }
     // get inner scores
-    for (int k = 0; k < K - 1; ++k) {
+    for (int k = 0; k <= K - 1; ++k) {
         auto midpoint_idx = float2radix((means[k] + means[k + 1]) / 2);
         for (auto start_idx = float2radix(means[k]); start_idx < midpoint_idx; start_idx++) {
-            section_scores[k] += square((double) radix2float(start_idx) - means[k]) * radix_bins[start_idx];
+            section_scores[k+1] += square((double) radix2float(start_idx) - means[k]) * radix_bins[start_idx];
         }
         for (auto start_idx = midpoint_idx; start_idx < float2radix(means[k + 1]); start_idx++) {
-            section_scores[k] += square((double) radix2float(start_idx) - means[k + 1]) * radix_bins[start_idx];
+            section_scores[k+1] += square((double) radix2float(start_idx) - means[k + 1]) * radix_bins[start_idx];
         }
     }
 
@@ -330,21 +330,16 @@ bool find_global_placement(const int K,
     double best_location = 0;
     for (int new_placement = 0; new_placement < K; ++new_placement) {
         if (new_placement == candidate.first) continue;
-        std::vector<double> mean_with_dummy_k;
-        mean_with_dummy_k.reserve(K);
-        for (int i = 0; i < new_placement; ++i) {
-            if (i == candidate.first) continue;
-            mean_with_dummy_k.push_back(means[i]);
+        std::vector<double> mean_with_dummy_k(K);
+        for (int i = 0; i < K; ++i) {
+            mean_with_dummy_k[i] = means[i];
         }
-        mean_with_dummy_k.push_back(0);
-        for (int i = new_placement; i < K; ++i) {
-            if (i == candidate.first) continue;
-            mean_with_dummy_k.push_back(means[i]);
-        }
+        mean_with_dummy_k[new_placement] = -1;
+        mean_with_dummy_k[candidate.first] = means[new_placement];
         auto update = find_locally_optimal_placement(new_placement, K, mean_with_dummy_k,
                                                      radix_bins, min_data, max_data, true);
         double improvement = (section_scores[new_placement] - update.improvement) -
-                             cost_to_remove_k[candidate.first].second;
+                             cost_to_remove_k[0].second;
         if (improvement > best_improvement) {
             best_improvement = improvement;
             best_mean_replacement = new_placement;
@@ -353,7 +348,8 @@ bool find_global_placement(const int K,
     }
     if (best_mean_replacement != -1) {
         // we found a better placement
-        means[best_mean_replacement] = best_location;
+        means[candidate.first] = best_location;
+        std::sort(means.begin(), means.end());
         return true;
     } else return false;
 }
@@ -409,7 +405,7 @@ kmeans(
 #ifndef NDEBUG
     std::cout << "initial means: ";
     for (auto mean: means) {
-        std::cout << float(mean) << " ";
+        std::cout << (float(mean) + MINIMUM_PERMISSIBLE_DATA_VALUE) << " ";
     }
     std::cout << std::endl;
 #endif
@@ -419,13 +415,8 @@ kmeans(
         movement_candidate[i] = true;
     }
 
+    bool have_globally_placed = false;
     int iterations = 0;
-    // then refine
-    // TODO: refine algorithm
-    // prior algorithm maintained a table and greedily chose the next mean to update by the largest improvement
-    // this algorithm is not guaranteed to converge however, and can get stuck in a cycle of moving means back and forth
-    // This update algorithm below (although potentially inefficient) seems to converge for all inputs we've tested.
-    // Any modifications should ensure convergence on the pytorch datasets.
     while (true) {
         // find the best mean to move
         bool moved_something = false;
@@ -437,7 +428,7 @@ kmeans(
                 if (movement_result.valid && movement_result.improvement > 0) {
                     moved_something = true;
 #ifndef NDEBUG
-                    std::cerr << "moved mean " << i << " from " << means[i] << " to " << movement_result.location
+                    std::cerr << "moved mean " << i << " from " << (means[i] + MINIMUM_PERMISSIBLE_DATA_VALUE) << " to " << (movement_result.location + MINIMUM_PERMISSIBLE_DATA_VALUE)
                               << " with improvement " << movement_result.improvement << std::endl;
 #endif
                     means[i] = movement_result.location;
@@ -449,31 +440,27 @@ kmeans(
                     }
                 } else {
 #ifndef NDEBUG
-                    std::cerr << "mean " << i << " at " << means[i] << " is already optimal" << std::endl;
+                    std::cerr << "mean " << i << " at " << (means[i] + MINIMUM_PERMISSIBLE_DATA_VALUE) << " is already optimal" << std::endl;
 #endif
                 }
             }
         }
-        if (!moved_something) {
-            break;
+        iterations++;
+
+
+        if (!moved_something || iterations >= max_iterations) {
+            // without: total loss: 0.0146769
+            // with:    total loss: 0.0146985
             // if we have found a local minimum for local placement, test to see if we can find a better global placement
             // if we can't, we're done
+            if (have_globally_placed) {
+                break;
+            }
             if (!find_global_placement(K, means, radix_bins, min_data, max_data)) {
                 break;
             }
-        }
-        iterations++;
-        if (iterations > max_iterations) {
-            // print out table state
-            std::cerr << "Failed to converge but this may just be a cyclical state. Carrying on..." << std::endl;
-//            std::cout << "final means: \n";
-//            for (int i = 0; i < K; ++i) {
-//                std::cout << "V(" << std::get<2>(update_table[i]) << "), current_loc: " << means[i] << ", loc (" << std::get<1>(update_table[i]) << ") improvement (" << std::get<0>(update_table[i]) << ")\n";
-//            }
-//            std::cout << std::endl;
-//
-//            throw std::runtime_error("Failed to converge in " + std::to_string(max_iterations) + " iterations");
-            break;
+            iterations = 0;
+            have_globally_placed = true;
         }
     }
     // correct for offest in means

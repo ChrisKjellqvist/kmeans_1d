@@ -4,7 +4,6 @@
 #include <vector>
 #include <random>
 #include "../src/util.h"
-#include <chrono>
 #include "../src/kmeans.h"
 #include "../src/constants.h"
 
@@ -14,7 +13,7 @@ double get_error(const std::vector<double> &means, const std::vector<float_type>
         // find closest mean and add error
         double smallest_error = 1e20;
         for (auto &mean: means) {
-            auto dist = (double)dat - (double)mean;
+            auto dist = (double) dat - (double) mean;
             auto t_error = dist * dist;
             if (t_error < smallest_error) {
                 smallest_error = t_error;
@@ -22,7 +21,7 @@ double get_error(const std::vector<double> &means, const std::vector<float_type>
         }
         error += smallest_error;
     }
-    return error / (double)data.size();
+    return error / (double) data.size();
 }
 
 /**
@@ -56,17 +55,17 @@ int main() {
     std::vector<float> std_devs;
     std::vector<float> probs;
 
-    centers.push_back(-2);
-    probs.push_back(0.3);
-    std_devs.push_back(3);
-
-    centers.push_back(20);
+    centers.push_back(-4);
     std_devs.push_back(0.5);
-    probs.push_back(0.65);
+    probs.push_back(0.4);
 
-    centers.push_back(40);
+    centers.push_back(0);
     std_devs.push_back(0.5);
-    probs.push_back(0.5);
+    probs.push_back(0.50);
+
+    centers.push_back(4);
+    std_devs.push_back(0.5);
+    probs.push_back(0.1);
 
     std::vector<float> cumulative_probability;
     float acc = 0;
@@ -86,51 +85,44 @@ int main() {
         // generate data
         data.reserve(N_DATAS);
         for (int i = 0; i < N_DATAS; ++i) {
-            if (booler(gen) < 0.5)
-                data.push_back((float_type) dis1(gen));
-            else
-                data.push_back((float_type) dis2(gen));
+            auto r = booler(gen);
+            int j = 0;
+            for (;j < cumulative_probability.size() && r > cumulative_probability[j]; ++j) {}
+            data.push_back(distributions[j](gen));
         }
     }
 
-    // find maximum and minimum datas
-    float_type max_data = data[0];
-    float_type min_data = data[0];
-    for (auto &dat: data) {
-        if (dat > max_data) max_data = dat;
-        if (dat < min_data) min_data = dat;
+    uint16_t radix_bins[1 << 16];
+    float_type data_min, data_max;
+    preprocess_and_insert_data(data, radix_bins, data_min, data_max);
+
+    auto start = std::chrono::high_resolution_clock::now();
+    std::vector<double> means(2);
+    means[0] = centers[1] - MINIMUM_PERMISSIBLE_DATA_VALUE;
+    means[1] = centers[2] - MINIMUM_PERMISSIBLE_DATA_VALUE;
+    double error_before =  get_error(means, data);
+
+    std::cerr << "data_min: " << float(data_min) << std::endl;
+    std::cerr << "data_max: " << float(data_max) << std::endl;
+
+    std::cerr << "means: ";
+    for (auto &mean: means) {
+         std::cerr << (mean + MINIMUM_PERMISSIBLE_DATA_VALUE) << " ";
     }
-    std::cout << "SANITY: max data: " << float(max_data) << std::endl;
-    std::cout << "SANITY: min data: " << float(min_data) << std::endl;
+    std::cerr << std::endl;
 
-#ifndef NDEBUG
-    int N_TIMES = 1;
-#else
-    int N_TIMES = 768;
-#endif
+    find_global_placement(2, means, radix_bins, data_min, data_max);
 
-    // total execution time counter
-    unsigned long long total_time = 0;
-    for (int R = 0; R < N_TIMES; ++R) {
-        auto start = std::chrono::high_resolution_clock::now();
-        auto means = kmeans(data, 2, 3000);
-        auto end = std::chrono::high_resolution_clock::now();
-        total_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    double error_after = get_error(means, data);
 
-        // check if converged
-        average_error += get_error(means, data);
-        // print means
-#ifndef NDEBUG
-        std::cout << "means: ";
-        for (auto &mean: means) {
-            std::cout << float(mean) << " ";
-        }
-        std::cout << std::endl;
-        std::cout << "Inspect above means for centering around " << center1 << " and " << center2 << std::endl;
-#endif
+    std::cerr << "means after: ";
+    for (auto &mean: means) {
+         std::cerr << (mean + MINIMUM_PERMISSIBLE_DATA_VALUE) << " ";
     }
+    std::cerr << std::endl;
 
-    std::cout << "average error: " << average_error / N_TIMES << std::endl;
-    std::cout << "time per kmean: " << total_time / N_TIMES << "µs" << std::endl;
-    std::cout << "Throughput: " << N_TIMES / (total_time / 1000000.0) << " kmean per second" << std::endl; //NOLINT
+    std::cout << "Error before: " << error_before << std::endl;
+    std::cout << "Error after: " << error_after << std::endl;
+
+
 }
