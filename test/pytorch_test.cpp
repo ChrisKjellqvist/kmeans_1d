@@ -3,8 +3,14 @@
 #include "../src/constants.h"
 #include "../src/kmeans.h"
 
-std::vector<char> get_the_bytes(std::string &filename) {
+std::vector<char> get_the_bytes(const std::string &filename) {
     std::ifstream input(filename, std::ios::binary);
+
+    // Assert file exists
+    std::stringstream ss;
+    ss << "File not found: " << filename;
+    assert(input.is_open() && ss.str().c_str());
+
     std::vector<char> bytes(
             (std::istreambuf_iterator<char>(input)),
             (std::istreambuf_iterator<char>()));
