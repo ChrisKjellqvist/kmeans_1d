@@ -1,5 +1,6 @@
 // Chris Kjellqvist - 28 June 2023
 
+#include <chrono>
 #include <iostream>
 #include <vector>
 #include <random>
