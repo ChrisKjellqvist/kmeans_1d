@@ -7,6 +7,7 @@
 #include <iostream>
 #include <cstring>
 #include <memory>
+#include <algorithm> 
 
 /**
  * Algorithm Description:
