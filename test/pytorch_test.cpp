@@ -10,7 +10,8 @@ std::vector<char> get_the_bytes(const std::string &filename) {
     // Assert file exists
     std::stringstream ss;
     ss << "File not found: " << filename;
-    assert(input.is_open() && ss.str().c_str());
+    // assert can be ignored in release mode
+    if (!input.is_open()) throw std::runtime_error(ss.str().c_str());
 
     std::vector<char> bytes(
             (std::istreambuf_iterator<char>(input)),
