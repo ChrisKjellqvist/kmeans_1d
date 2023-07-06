@@ -14,12 +14,12 @@
 
 using radix_t = uint16_t;
 
-#ifdef __ARM64_ARCH_8__
-#define HAS_FP16
-using float_type = __fp16;
-#else
+//#ifdef __ARM64_ARCH_8__
+//#define HAS_FP16
+//using float_type = __fp16;
+//#else
 using float_type = float;
-#endif
+//#endif
 
 radix_t float2radix(float_type f);
 

@@ -32,9 +32,9 @@ double compute_one_loss(float_type data_point, std::vector<double> &centroids) {
     double smallest_error = 1e20;
     for (auto &mean: centroids) {
         auto dist = (double)data_point - (double)mean;
-        auto t_error = dist > 0 ? dist : -dist;
-        if (t_error < smallest_error) {
-            smallest_error = t_error;
+        dist = dist * dist;
+        if (dist < smallest_error) {
+            smallest_error = dist;
         }
     }
     return smallest_error;
@@ -50,6 +50,34 @@ double compute_loss(std::vector<float_type> &data, std::vector<double> &centroid
     return error / (double)data.size();
 }
 
+#include "Ckmeans.1d.dp.h"
+
+std::vector<double> ckmeans_wrapper(const std::vector <float> &data, int K) {
+    auto cluster = new int[K];
+    auto means = new double[K];
+    auto withinss = new double[K];
+    auto size = new double[K];
+    auto BICs = new double[K];
+    std::string estimate_k = "false";
+    std::string method = "loglinear";
+    auto data_doubles = new double[data.size()];
+    for (int i = 0; i < data.size(); i++) {
+        data_doubles[i] = (double)data[i];
+    }
+    kmeans_1d_dp(data_doubles, data.size(), nullptr, K, K, cluster, means, withinss, size, BICs, estimate_k, method, DISSIMILARITY::L2);
+    std::vector<double> real_means(K);
+    for (int i = 0; i < K; i++) {
+        real_means[i] = means[i];
+    }
+    delete[] cluster;
+    delete[] means;
+    delete[] withinss;
+    delete[] size;
+    delete[] BICs;
+
+    return real_means;
+}
+
 int main() {
     std::vector<char> f = get_the_bytes((std::string &) "sample.pt");
     torch::IValue x = torch::pickle_load(f);
@@ -57,6 +85,8 @@ int main() {
 
     long total_time = 0;
     double total_loss = 0;
+    long total_ckmeans_time = 0;
+    double total_ckmeans_loss = 0;
 #ifndef NDEBUG
     int N_DATAS = 5;
 #else
@@ -74,11 +104,19 @@ int main() {
         auto end = std::chrono::high_resolution_clock::now();
         total_loss += compute_loss(data, means);
         total_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+        start = std::chrono::high_resolution_clock::now();
+        auto ckmeans_means = ckmeans_wrapper(data, 8);
+        end = std::chrono::high_resolution_clock::now();
+        total_ckmeans_loss += compute_loss(data, ckmeans_means);
+        total_ckmeans_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     }
 
     // print total time in second
     std::cout << "total time: " << (total_time / (1000)) << "ms" << std::endl;
     std::cout << "total loss: " << total_loss / 768.0 << std::endl;
+    std::cout << "total ckmeans time: " << (total_ckmeans_time / (1000)) << "ms" << std::endl;
+    std::cout << "total ckmeans loss: " << total_ckmeans_loss / 768.0 << std::endl;
 
     return 0;
 }

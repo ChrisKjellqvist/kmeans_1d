@@ -1,0 +1,3 @@
+[submodule "ckmeans"]
+	path = ckmeans
+	url = git@github.com:ChrisKjellqvist/ckmeans.git

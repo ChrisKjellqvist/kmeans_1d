@@ -30,7 +30,7 @@ double get_error(const std::vector<double> &means, const std::vector<float_type>
  *
  * The problem is as follows (K = 2):
  * Consider a distribution with two primary peaks, one at -2, and one at 2. However, the magnitude of the peak at 2
- * is much smaller than the peak at -2. On the first iteration of the algorithm the means are set to be equally
+ * is much larger than the peak at -2. On the first iteration of the algorithm the means are set to be equally
  * spread over the data. If the spread of the data is very large compared to the spread of the peaks, then an initial
  * placement of the means may be such that the second mean is placed PAST the second peak. Then, when considering
  * where to place mean_0 between the leftmost datapoint and mean_1, the algorithm will place it at the second peak
