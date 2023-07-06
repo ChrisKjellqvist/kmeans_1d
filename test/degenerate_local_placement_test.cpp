@@ -1,6 +1,7 @@
 // Chris Kjellqvist - 28 June 2023
 
 #include <iostream>
+#include <chrono>
 #include <vector>
 #include <random>
 #include "../src/util.h"
