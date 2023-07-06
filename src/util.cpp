@@ -12,11 +12,13 @@ radix_t float2radix(float_type f) {
     uint32_t f32 = reinterpret_cast<uint32_t&>(f);
     auto exp = int32_t((f32 >> 23) & 0xFF);
     uint32_t mantissa = (f32 & 0x7FFFFF) >> (23 - 10);
+    // do we round up?
+    bool round_up = f32 & 0x1FFF;
     // exp is 8 bits, need to transform it to 5 bits. Can't directly shift it unfortunately
     // We need to do some actual arithmetic. Convert to signed exponent and then back to unsigned
     // except then for fp16
     exp = my_max(exp - 127 + 15, 0);
-    return (exp << 10) |  mantissa;
+    return ((exp << 10) |  mantissa) + round_up;
 #endif
 }
 
@@ -33,3 +35,17 @@ double radix2float(radix_t f) {
 #endif
 }
 
+void limit_precision_to_fp16(double *data, int N) {
+    for (int i = 0; i < N; i++) {
+        data[i] = radix2float(float2radix(data[i]));
+    }
+}
+
+void limit_precision_to_fp16(float *data, int N) {
+    for (int i = 0; i < N; i++) {
+        data[i] = radix2float(float2radix(data[i]));
+    }
+}
+#ifdef HAS_FP16
+void limit_precision_to_fp16(__fp16 *data, int N) {}
+#endif

@@ -14,12 +14,12 @@
 
 using radix_t = uint16_t;
 
-//#ifdef __ARM64_ARCH_8__
-//#define HAS_FP16
-//using float_type = __fp16;
-//#else
+#ifdef __ARM64_ARCH_8__
+#define HAS_FP16
+using float_type = __fp16;
+#else
 using float_type = float;
-//#endif
+#endif
 
 radix_t float2radix(float_type f);
 
@@ -31,5 +31,9 @@ constexpr uint32_t n_radix_bins() {
 
 template <typename t>
 t square(t q) { return q * q; }
+
+void limit_precision_to_fp16(double *data, int N);
+void limit_precision_to_fp16(float *data, int N);
+void limit_precision_to_fp16(__fp16 *data, int N);
 
 #endif //KMEANS_HACKING_UTIL_H

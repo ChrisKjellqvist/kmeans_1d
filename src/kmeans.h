@@ -15,7 +15,8 @@ std::vector<double>
         kmeans(
                 const std::vector<float_type> &data,
                 int k,
-                size_t max_iterations);
+                size_t max_iterations,
+                bool *converged = nullptr);
 
 bool find_global_placement(const int K,
                            std::vector<double> &means,

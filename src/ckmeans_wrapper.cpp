@@ -6,7 +6,7 @@
 #include "Ckmeans.1d.dp.h"
 
 std::vector<double> ckmeans_wrapper(const std::vector <float> &data, int K) {
-    auto cluster = new int[K];
+    auto cluster = new int[data.size()];
     auto means = new double[K];
     auto withinss = new double[K];
     auto size = new double[K];

@@ -8,6 +8,7 @@
 #include <cstring>
 #include <memory>
 #include <algorithm>
+#include <gmp.h>
 
 /**
  * Algorithm Description:
@@ -92,6 +93,7 @@ find_locally_optimal_placement(int k,
                                float_type min_data,
                                float_type max_data,
                                bool return_absolute_score) {
+    mpf_set_default_prec(2048);
     // bottom and top are the minimum and maximum logical places we can place k
     //
     // if we are considering a mean that is between other means, then we only consider placing it anywhere between
@@ -99,6 +101,7 @@ find_locally_optimal_placement(int k,
     //
     // if it is an outlier k (top or bottom), then the logical limit is just the inner boundary +- data[inner], respectively
     if (K == 1) { //NOLINT
+//        mpf_t a = 0, b = 0, c = 0;
         double a = 0, b = 0, c = 0;
         for (int i = float2radix(min_data); i <= float2radix(max_data) + 1; ++i) {
             if (radix_bins[i] == 0) continue;
@@ -134,7 +137,7 @@ find_locally_optimal_placement(int k,
 
     uint32_t top_idx, bot_idx;
     { // limit the scope of i
-        top_idx = float2radix((float_type) midpoint) + 1;
+        top_idx = float2radix((float_type) midpoint);
         bot_idx = float2radix((float_type) bottom);
         while (radix_bins[bot_idx] == 0) bot_idx++;
         while (radix_bins[top_idx] == 0 && top_idx <= absolute_top_idx) top_idx++;
@@ -186,7 +189,7 @@ find_locally_optimal_placement(int k,
             if (left <= original_mean && original_mean <= right && !return_absolute_score) {
                 original_score = square((double) original_mean) * a + original_mean * 2 * b + c;
             }
-            if (derivative_zero >= left - EPSILON && derivative_zero <= right + EPSILON) {
+            if (derivative_zero >= left && derivative_zero <= right) {
                 saw_zero++;
                 double par_at_dzero = derivative_zero * derivative_zero * a + derivative_zero * 2 * b + c;
                 // x, y pair
@@ -238,24 +241,28 @@ find_locally_optimal_placement(int k,
         }
     }
     if (saw_zero == 0) {
-        // no data points in this section...
+        std::cerr << "ERR" << std::endl;
+        // no data points in this section?
 #ifndef NDEBUG
         std::cerr << "no data points in this section" << std::endl;
 #endif
         return movement(0, original_mean, false);
     }
     // FIXME the following two checks are disabled for now
-//    if (means[k] == best_zero_position) {
-//        if (original_score != best_zero_mag) {
-//            throw std::runtime_error("unexpected error 0");
-//        }
-//    }
+    if (means[k] == best_zero_position) {
+        if (fabs(original_score -best_zero_mag) > 1e-6) {
+            std::cerr << original_score << " " << best_zero_mag << std::endl;
+            throw std::runtime_error("unexpected error 0");
+        }
+        return movement(original_mean, 0, false);
+    }
     // this error should not occur when using native fp16 but when
     // using fp32, the error seems unavoidable due to error propagation
     // when computive radices
-//    if (original_score < best_zero_mag) {
-//        throw std::runtime_error("unexpected error 1");
-//    }
+    if (1e6 < best_zero_mag - original_score) {
+        std::cerr << original_score << " " << best_zero_mag << std::endl;
+        throw std::runtime_error("unexpected error 1");
+    }
 
     return movement(best_zero_position,
                     return_absolute_score ? best_zero_mag : original_score - best_zero_mag,
@@ -384,7 +391,8 @@ std::vector<double>
 kmeans(
         const std::vector<float_type> &data,
         int K,
-        size_t max_iterations) {
+        size_t max_iterations,
+        bool *converged) {
     uint16_t radix_bins[n_radix_bins()];
 
     float_type min_data, max_data;
@@ -454,10 +462,16 @@ kmeans(
             // with:    total loss: 0.0146985
             // if we have found a local minimum for local placement, test to see if we can find a better global placement
             // if we can't, we're done
+
+            if (converged != nullptr) {
+                *converged = iterations < max_iterations;
+            }
+            break;
             if (have_globally_placed) {
                 break;
             }
             if (!find_global_placement(K, means, radix_bins, min_data, max_data)) {
+                std::cerr << "failed to find global placement" << std::endl;
                 break;
             }
             iterations = 0;
