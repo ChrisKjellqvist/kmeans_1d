@@ -2,6 +2,7 @@
 #include <torch/torch.h>
 #include "../src/constants.h"
 #include "../src/kmeans.h"
+#include "ckmeans_wrapper.h"
 
 std::vector<char> get_the_bytes(const std::string &filename) {
     std::ifstream input(filename, std::ios::binary);
@@ -56,33 +57,6 @@ double compute_loss(std::vector<float_type> &data, std::vector<double> &centroid
     return error / (double)data.size();
 }
 
-#include "Ckmeans.1d.dp.h"
-
-std::vector<double> ckmeans_wrapper(const std::vector <float> &data, int K) {
-    auto cluster = new int[K];
-    auto means = new double[K];
-    auto withinss = new double[K];
-    auto size = new double[K];
-    auto BICs = new double[K];
-    std::string estimate_k = "false";
-    std::string method = "loglinear";
-    auto data_doubles = new double[data.size()];
-    for (int i = 0; i < data.size(); i++) {
-        data_doubles[i] = (double)data[i];
-    }
-    kmeans_1d_dp(data_doubles, data.size(), nullptr, K, K, cluster, means, withinss, size, BICs, estimate_k, method, DISSIMILARITY::L2);
-    std::vector<double> real_means(K);
-    for (int i = 0; i < K; i++) {
-        real_means[i] = means[i];
-    }
-    delete[] cluster;
-    delete[] means;
-    delete[] withinss;
-    delete[] size;
-    delete[] BICs;
-
-    return real_means;
-}
 
 int main() {
     std::vector<char> f = get_the_bytes((std::string &) "sample.pt");
