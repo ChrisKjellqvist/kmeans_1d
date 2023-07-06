@@ -5,11 +5,11 @@
 #include "ckmeans_wrapper.h"
 
 std::vector<char> get_the_bytes(const std::string &filename) {
+    std::cout << "filename is " << filename << std::endl;
     std::ifstream input(filename, std::ios::binary);
 
     // Assert file exists
     std::stringstream ss;
-    ss << "File not found: " << filename;
     // assert can be ignored in release mode
     if (!input.is_open()) throw std::runtime_error(ss.str().c_str());
 
@@ -60,7 +60,7 @@ double compute_loss(std::vector<float_type> &data, std::vector<double> &centroid
 
 
 int main() {
-    std::vector<char> f = get_the_bytes((std::string &) "sample.pt");
+    std::vector<char> f = get_the_bytes("sample.pt");
     torch::IValue x = torch::pickle_load(f);
     torch::Tensor sample = x.toTensor();
 
