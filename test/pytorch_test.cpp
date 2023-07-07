@@ -40,7 +40,7 @@ double compute_one_loss(float_type data_point, const std::vector<double> &centro
     double smallest_error = 1e20;
     for (auto &mean: centroids) {
         auto dist = (double)data_point - (double)mean;
-        dist = dist * dist;
+        dist = fabs(dist);
         if (dist < smallest_error) {
             smallest_error = dist;
         }
@@ -89,7 +89,7 @@ int main() {
 #ifndef NDEBUG
     int N_DATAS = 1;
 #else
-    int N_DATAS = 50;
+    int N_DATAS = 150;
 #endif
 
     int K_MEANS = 16;
@@ -137,10 +137,10 @@ int main() {
     }
 
     // print total time in second
-    std::cout << "total time: " << (total_time / (1000)) << "ms" << std::endl;
     std::cout << "total loss: " << total_loss / 768.0 << std::endl;
-    std::cout << "total ckmeans time: " << (total_ckmeans_time / (1000)) << "ms" << std::endl;
     std::cout << "total ckmeans loss: " << total_ckmeans_loss / 768.0 << std::endl;
+    std::cout << "total time: " << (total_time / (1000)) << "ms" << std::endl;
+    std::cout << "total ckmeans time: " << (total_ckmeans_time / (1000)) << "ms" << std::endl;
 
     return 0;
 }

@@ -8,7 +8,6 @@
 #include <cstring>
 #include <memory>
 #include <algorithm>
-#include <gmp.h>
 
 /**
  * Algorithm Description:
@@ -74,16 +73,6 @@
  * 5. Repeat steps 2-4 until the update table contains no valid updates or potential improving placements
  * 6. Return the means
  */
-struct movement {
-    double location;
-    double improvement;
-    bool valid;
-
-    movement(double location, double improvement, bool valid) : location(location), improvement(improvement),
-                                                                valid(valid) {}
-
-    explicit movement() : location(0), improvement(0), valid(false) {}
-};
 
 movement
 find_locally_optimal_placement(int k,
@@ -93,7 +82,6 @@ find_locally_optimal_placement(int k,
                                float_type min_data,
                                float_type max_data,
                                bool return_absolute_score) {
-    mpf_set_default_prec(2048);
     // bottom and top are the minimum and maximum logical places we can place k
     //
     // if we are considering a mean that is between other means, then we only consider placing it anywhere between
@@ -125,7 +113,7 @@ find_locally_optimal_placement(int k,
         top = means[k + 1];
     }
 
-    double midpoint = (top + bottom) / 2;
+    double midpoint = top / 2 + bottom / 2;
     uint32_t absolute_top_idx = float2radix((float_type) top);
 
     bool no_zero = true;
@@ -138,7 +126,7 @@ find_locally_optimal_placement(int k,
     uint32_t top_idx, bot_idx;
     { // limit the scope of i
         top_idx = float2radix((float_type) midpoint);
-        bot_idx = float2radix((float_type) bottom);
+        bot_idx = float2radix((float_type) bottom) + 1;
         while (radix_bins[bot_idx] == 0) bot_idx++;
         while (radix_bins[top_idx] == 0 && top_idx <= absolute_top_idx) top_idx++;
 
@@ -187,7 +175,11 @@ find_locally_optimal_placement(int k,
             // it is also incredibly rare to have a flat portion in the middle, so this `if` will be trained unlikely
             auto derivative_zero = (-b) / (a);
             if (left <= original_mean && original_mean <= right && !return_absolute_score) {
-                original_score = square((double) original_mean) * a + original_mean * 2 * b + c;
+                original_score = square(original_mean) * a + original_mean * 2 * b + c;
+                std::cout << "a: " << a << " b: " << b << " c: " << c << std::endl;
+
+                printf("original score: %0.16f\n", original_score);
+                printf("B: %0.16f\n", b);
             }
             if (derivative_zero >= left && derivative_zero <= right) {
                 saw_zero++;
@@ -248,7 +240,6 @@ find_locally_optimal_placement(int k,
 #endif
         return movement(0, original_mean, false);
     }
-    // FIXME the following two checks are disabled for now
     if (means[k] == best_zero_position) {
         if (fabs(original_score -best_zero_mag) > 1e-6) {
             std::cerr << original_score << " " << best_zero_mag << std::endl;
@@ -366,6 +357,7 @@ void preprocess_and_insert_data(const std::vector<float_type> &fpar, uint16_t *r
                                 float_type &max_data) {
     min_data = (float_type) fpar[0] - MINIMUM_PERMISSIBLE_DATA_VALUE;
     max_data = (float_type) fpar[0] - MINIMUM_PERMISSIBLE_DATA_VALUE;
+    memset(radix_bins, 0, sizeof(uint16_t) * (1 << 16));
     for (const auto dat: fpar) {
         auto adjusted_datum = float_type(dat - MINIMUM_PERMISSIBLE_DATA_VALUE);
         if (dat < MINIMUM_PERMISSIBLE_DATA_VALUE) {
