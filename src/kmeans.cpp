@@ -176,8 +176,8 @@ find_locally_optimal_placement(int k,
             auto derivative_zero = (-b) / (a);
             if (left <= original_mean && original_mean <= right && !return_absolute_score) {
                 original_score = square(original_mean) * a + original_mean * 2 * b + c;
-                std::cout << "a: " << a << " b: " << b << " c: " << c << std::endl;
 
+                std::cout << "a: " << a << " b: " << b << " c: " << c << std::endl;
                 printf("original score: %0.16f\n", original_score);
                 printf("B: %0.16f\n", b);
             }

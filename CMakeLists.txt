@@ -7,9 +7,15 @@ if (APPLE)
   add_compile_options(-Xclang -fnative-half-type)
 endif()
 
+include(FindPkgConfig)
+#get gmp
+pkg_search_module(GMP REQUIRED gmp)
+
 # Main CKKMeans library
 add_library(CKKMeans SHARED src/kmeans.cpp src/util.cpp src/util.h src/constants.h)
-target_include_directories(CKKMeans PUBLIC src )
+target_include_directories(CKKMeans PUBLIC src ${GMP_INCLUDE_DIRS})
+target_link_directories(CKKMeans PUBLIC ${GMP_LIBRARY_DIRS})
+target_link_libraries(CKKMeans PUBLIC ${GMP_LIBRARIES})
 
 add_subdirectory(ckmeans)
 
