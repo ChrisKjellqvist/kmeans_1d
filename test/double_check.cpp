@@ -88,14 +88,15 @@ int main() {
         // extract exponent
 #ifdef HAS_FP16
         uint16_t exponent = (reinterpret_cast<uint16_t &>(r) >> 10) & 0x1F;
-#else
-
-#endif
         auto scaled_error = fabs(f - f2) / (1 << exponent);
         if (scaled_error > largest_scaled_error) {
             largest_scaled_error = scaled_error;
             largest_error_val = f;
         }
+#else
+        std::cerr << "sanity not implemented yet for platforms without fp16" << std::endl;
+        break;
+#endif
     }
     if (largest_scaled_error > 1.0 / (1 << 10)) {
         std::cout << "Largest error is " << largest_scaled_error << std::endl;
