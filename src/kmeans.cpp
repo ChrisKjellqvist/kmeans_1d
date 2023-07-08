@@ -5,9 +5,34 @@
 #include "kmeans.h"
 #include "constants.h"
 #include <iostream>
+#include <gmp.h>
 #include <cstring>
 #include <memory>
 #include <algorithm>
+
+static double get_zero(uint32_t a, mpq_t &b, mpq_t &tmp, mpq_t &tmp2, mpq_t &tmp3) {
+    auto b_d = mpq_get_d(b);
+    mpq_set_ui(tmp, a, 1);
+    mpq_neg(tmp2, b);
+    mpq_div(tmp3, tmp2, tmp);
+    return mpq_get_d(tmp3);
+}
+
+static double evaluate(uint32_t a, mpq_t &b, mpq_t &c, mpq_t &tmp, mpq_t &tmp2, mpq_t &tmp3, double x) {
+    double b_d = mpq_get_d(b);
+    double c_d = mpq_get_d(c);
+//    mpq_set_d(tmp, x);
+//    mpq_set_ui(tmp3, 2, 1);
+//    mpq_mul(tmp2, b, tmp);
+//    mpq_mul(tmp2, tmp2, tmp3);
+//    mpq_mul(tmp, tmp, tmp);
+//    mpq_set_ui(tmp3, a, 1);
+//    mpq_mul(tmp, tmp3, tmp);
+//    mpq_add(tmp2, tmp, tmp2);
+//    mpq_add(tmp2, tmp2, c);
+    return a * x * x + 2 * b_d * x + c_d;
+//    return mpq_get_d(tmp2);
+}
 
 /**
  * Algorithm Description:
@@ -74,6 +99,7 @@
  * 6. Return the means
  */
 
+double data_norm;
 movement
 find_locally_optimal_placement(int k,
                                int K,
@@ -102,6 +128,7 @@ find_locally_optimal_placement(int k,
     }
     double bottom, top;
     bool has_left, has_right;
+    uint16_t datas_encountered = 0;
     if (k == 0) {
         bottom = means[1] - 3 * (means[1] - min_data);
         has_left = false;
@@ -115,10 +142,16 @@ find_locally_optimal_placement(int k,
         has_right = false;
     } else {
         top = means[k + 1];
+#ifndef NDEBUG
+        std::cout << "top initialized: " << top << std::endl;
+#endif
         has_right = true;
     }
 
     double midpoint = top / 2 + bottom / 2;
+    if (!has_left) {
+        midpoint = top / 2;
+    }
     uint32_t absolute_top_idx = float2radix((float_type) top);
 
     bool no_zero = true;
@@ -126,7 +159,10 @@ find_locally_optimal_placement(int k,
     uint32_t a = 0;
     // b actually stores b / 2. Because we're only adding (x - c)^2, 2xc is the only thing being added to b
     // this ends up in wasting a mantissa bit which may end up being a problem and causing non-convergence
-    double b = 0, c = 0;
+    mpq_t b, c, tmp, tmp2, tmp3, radix;
+    mpq_inits(b, c, tmp, tmp2, tmp3, radix, nullptr);
+    mpq_set_ui(b, 0, 1);
+    mpq_set_ui(c, 0, 1);
 
     uint32_t top_idx, bot_idx;
     { // limit the scope of i
@@ -136,10 +172,17 @@ find_locally_optimal_placement(int k,
         } else {
             bot_idx = 0;
         }
+        if (k > 0) {
+            if (float2radix(means[k - 1]) == bot_idx) {
+                bot_idx++;
+            }
+        }
         while (radix_bins[bot_idx] == 0 && has_left) bot_idx++;
-        while (radix_bins[top_idx] == 0 && top_idx <= absolute_top_idx && has_right) top_idx++;
-        if (!has_left) bot_idx = top_idx;
-        if (!has_right) top_idx = bot_idx;
+        while ((radix_bins[top_idx] == 0 || (top - 2 * (top - radix2float(top_idx))) < my_max(0, bottom)) &&
+        top_idx <= absolute_top_idx &&
+        has_right) top_idx++;
+//        if (!has_left) bot_idx = top_idx;
+//        if (!has_right) top_idx = bot_idx;
 
         size_t i = bot_idx;
         for (; i < top_idx && radix2float(i) <= midpoint; ++i) {
@@ -149,15 +192,36 @@ find_locally_optimal_placement(int k,
             // consider (x - datas[i])^2
             // x^2 - 2 * datas[i]x + datas[i] ^ 2
             a += radix_bins[i];
-            b -= radix_bins[i] * (double) radix2float(i);
-            c += square((double) radix2float(i)) * radix_bins[i];
+            datas_encountered++;
+            mpq_set_ui(radix, radix_bins[i], 1);
+            mpq_set_d(tmp, (double) radix2float(i));
+            mpq_mul(tmp2, tmp, radix);
+            // b -= radix_bins[i] * (double) radix2float(i);
+            mpq_sub(b, b, tmp2);
+            // c += square((double) radix2float(i)) * radix_bins[i];
+            mpq_mul(tmp3, tmp, tmp);
+            mpq_mul(tmp2, tmp3, radix);
+            mpq_add(c, c, tmp2);
+            mpq_canonicalize(b);
+            mpq_canonicalize(c);
+#ifndef NDEBUG
+            printf("a: %u, b: %f, c: %f after adding parabolic term %f\n", a, mpq_get_d(b), mpq_get_d(c), radix2float(i));
+#endif
         }
         for (; i < absolute_top_idx; ++i) {
             if (radix_bins[i] == 0) {
                 continue;
             }
             double d = (double)top - (double)radix2float(i);
-            c += square(d) * radix_bins[i];
+            mpq_set_d(tmp2, d);
+            mpq_mul(tmp, tmp2, tmp2);
+            mpq_set_ui(radix, radix_bins[i], 1);
+            mpq_mul(tmp3, tmp, radix);
+            // c += d^2 * radix_bins[i];
+            mpq_add(c, c, tmp3);
+#ifndef NDEBUG
+            printf("a: %u, b: %f, c: %f after adding constant term %f\n", a, mpq_get_d(b), mpq_get_d(c), radix2float(i));
+#endif
         }
     }
     double left_disc = bottom + 2 * (radix2float(bot_idx) - bottom);
@@ -175,8 +239,31 @@ find_locally_optimal_placement(int k,
     auto original_mean = means[k];
     int saw_zero = 0;
 
+    // check if we're starting with a zero
+
+
     // consider the discontinuities in order
-    while (top_idx < absolute_top_idx || bot_idx < absolute_top_idx) {
+#ifndef NDEBUG
+    printf("Initial left disc idx %u, right disc idx %u, top idx %u for %d/%d\n",
+           float2radix(left_disc), float2radix(right_disc), absolute_top_idx, k, K);
+#endif
+    auto zero_loc = get_zero(a, b, tmp, tmp2, tmp3);
+    if (zero_loc >= left && zero_loc <= right) {
+        saw_zero = 1;
+        best_zero_position = zero_loc;
+        best_zero_mag = evaluate(a, b, c, tmp, tmp2, tmp3, zero_loc);
+#ifndef NDEBUG
+        std::cout << "Found initial zero at " << best_zero_position << " with score " << best_zero_mag << "\n";
+#endif
+    } else {
+#ifndef NDEBUG
+        std::cout << "No initial zero found because " << zero_loc << " is not in [" << left << ", " << right << "]\n";
+#endif
+    }
+    if (original_mean >= left && original_mean <= right) {
+        original_score = evaluate(a, b, c, tmp, tmp2, tmp3, original_mean);
+    }
+    while (my_min(float2radix(left_disc), float2radix(right_disc)) <= absolute_top_idx) {
         // d/dx of current parabola is 2ax + b
         // so solution = -b/2a
         if (a > 0) {
@@ -184,17 +271,17 @@ find_locally_optimal_placement(int k,
             // mean there will result in 0 points being assigned to the mean. This is _never_ optimal and will result
             // in a divide by zero error. At any rate, it's not important to consider besides for the obvious error.
             // it is also incredibly rare to have a flat portion in the middle, so this `if` will be trained unlikely
-            auto derivative_zero = (-b) / (a);
+            auto b_d = mpq_get_d(b);
+            auto derivative_zero = get_zero(a, b, tmp, tmp2, tmp3);
             if (left <= original_mean && original_mean <= right && !return_absolute_score) {
-                original_score = square(original_mean) * a + original_mean * 2 * b + c;
-
-//                std::cout << "a: " << a << " b: " << b << " c: " << c << std::endl;
-//                printf("original score: %0.16f\n", original_score);
-//                printf("B: %0.16f\n", b);
+                original_score = evaluate(a, b, c, tmp, tmp2, tmp3, original_mean);
+#ifndef NDEBUG
+                printf("original score: %0.16f\n", original_score);
+#endif
             }
             if (derivative_zero >= left && derivative_zero <= right) {
                 saw_zero++;
-                double par_at_dzero = derivative_zero * derivative_zero * a + derivative_zero * 2 * b + c;
+                double par_at_dzero = derivative_zero * derivative_zero * a + derivative_zero * 2 * b_d + mpq_get_d(c);
                 // x, y pair
                 if (no_zero) {
                     no_zero = false;
@@ -213,11 +300,23 @@ find_locally_optimal_placement(int k,
             // if the disc comes the left set then it's a parabola becoming flat and the ownership of this point is
             // transferred to the neighboring mean
             a -= radix_bins[bot_idx];
-            b += (double) radix2float(bot_idx) * radix_bins[bot_idx];
-            c -= radix_bins[bot_idx] * square((double) radix2float(bot_idx));
+            mpq_set_ui(radix, radix_bins[bot_idx], 1);
+            mpq_set_d(tmp, (double) radix2float(bot_idx));
+            mpq_mul(tmp2, tmp, radix);
+            // b += (double) radix2float(bot_idx) * radix_bins[bot_idx];
+            mpq_add(b, b, tmp2);
+            // c = c - radix_bins[bot_idx] * (square((double) radix2float(bot_idx)) + square((double) diff))
+            mpq_mul(tmp3, tmp, tmp);
             auto diff = bottom - radix2float(bot_idx);
-            c += square((double) diff) * radix_bins[bot_idx];
-
+            mpq_set_d(tmp2, diff);
+            mpq_mul(tmp2, tmp2, tmp2);
+            mpq_sub(tmp3, tmp2, tmp3);
+            mpq_add(c, c, tmp3);
+            mpq_canonicalize(b);
+            mpq_canonicalize(c);
+#ifndef NDEBUG
+            printf("a: %d, b: %0.16f, c: %0.16f after removing parabolic term %f\n", a, mpq_get_d(b), mpq_get_d(c), radix2float(top_idx));
+#endif
             do {
                 bot_idx++;
             } while (radix_bins[bot_idx] == 0 && bot_idx < top_idx);
@@ -228,10 +327,27 @@ find_locally_optimal_placement(int k,
             // move discontinuity bounds
             // if the disc comes from the right set then it's a flat area becoming a parabola
             a += radix_bins[top_idx];
-            b -= (double) radix2float(top_idx) * radix_bins[top_idx];
-            c += square((double) radix2float(top_idx)) * radix_bins[top_idx];
+            datas_encountered++;
+            mpq_set_ui(radix, radix_bins[top_idx], 1);
+            mpq_set_d(tmp, (double) radix2float(top_idx));
+            mpq_mul(tmp2, tmp, radix);
+            // b -= (double) radix2float(top_idx) * radix_bins[top_idx];
+            mpq_sub(b, b, tmp2);
             auto diff = radix2float(absolute_top_idx) - radix2float(top_idx);
-            c -= square((double) diff) * radix_bins[top_idx];
+            // c += square((double) radix2float(top_idx)) * radix_bins[top_idx];
+            // c -= square((double) diff) * radix_bins[top_idx];
+            // equivalent to c += radix * (r2f(top_idx)^2 - diff^2)
+            mpq_mul(tmp3, tmp, tmp);
+            mpq_set_d(tmp2, diff);
+            mpq_mul(tmp2, tmp2, tmp2);
+            mpq_sub(tmp3, tmp3, tmp2);
+            mpq_mul(tmp3, tmp3, radix);
+            mpq_add(c, c, tmp3);
+            mpq_canonicalize(b);
+            mpq_canonicalize(c);
+#ifndef NDEBUG
+            printf("a: %d, b: %0.16f, c: %0.16f after adding parabolic term %f\n", a, mpq_get_d(b), mpq_get_d(c), radix2float(top_idx));
+#endif
             do {
                 top_idx++;
             } while (radix_bins[top_idx] == 0 && top_idx <= absolute_top_idx);
@@ -244,18 +360,29 @@ find_locally_optimal_placement(int k,
         }
     }
     if (saw_zero == 0) {
-        std::cerr << "ERR" << std::endl;
+        if (datas_encountered > 0) {
+            std::cout << "left: " << left << ", right: " << right << std::endl;
+            std::cout << "min_data: " << float(min_data) << ", max_data: " << float(max_data) << std::endl;
+            std::cout << "current means: ";
+            for (int i = 0; i < K; i++) {
+                std::cout << means[i] << ", ";
+            }
+            std::cout << std::endl;
+            throw std::runtime_error("unexpected error 1");
+        }
         // no data points in this section?
 #ifndef NDEBUG
         std::cerr << "no data points in this section" << std::endl;
 #endif
+        mpq_clears(b, c, tmp, tmp2, tmp3, radix, nullptr);
         return movement(0, original_mean, false);
     }
     if (means[k] == best_zero_position) {
-        if (fabs(original_score -best_zero_mag) > 1e-6) {
+        if (fabs(original_score - best_zero_mag) > 1e-6) {
             std::cerr << original_score << " " << best_zero_mag << std::endl;
             throw std::runtime_error("unexpected error 0");
         }
+        mpq_clears(b, c, tmp, tmp2, tmp3, radix, nullptr);
         return movement(original_mean, 0, false);
     }
     // this error should not occur when using native fp16 but when
@@ -265,12 +392,131 @@ find_locally_optimal_placement(int k,
         std::cerr << original_score << " " << best_zero_mag << std::endl;
         throw std::runtime_error("unexpected error 1");
     }
-
-//    return movement(best_zero_position,
-//                    return_absolute_score ? best_zero_mag : original_score - best_zero_mag,
-//                    true);
-    return movement(best_zero_position, original_score - best_zero_mag, fabs(original_score - best_zero_mag) > 1e-2);
+    mpq_clears(b, c, tmp, tmp2, tmp3, radix, nullptr);
+    return movement(best_zero_position, original_score - best_zero_mag, fabs(original_score - best_zero_mag) > 1e-8);
 }
+
+void preprocess_and_insert_data(const std::vector<float_type> &fpar, uint16_t *radix_bins, float_type &min_data,
+                                float_type &max_data, double &norm) {
+    norm = fpar[0];
+    memset(radix_bins, 0, sizeof(uint16_t) * (1 << 16));
+    for (const auto dat: fpar) {
+        if (dat < norm) norm = dat;
+    }
+    for (const auto dat: fpar) {
+        auto adjusted_datum = float_type(dat - norm);
+        auto radix = float2radix(adjusted_datum);
+        if (radix_bins[radix] == (1 << (sizeof(radix_t) * 8)) - 1) {
+            std::cout << "radix bin overflow" << std::endl;
+            throw std::runtime_error("radix bin overflow");
+        }
+        radix_bins[radix]++;
+        if (adjusted_datum < min_data) min_data = adjusted_datum;
+        if (adjusted_datum > max_data) max_data = adjusted_datum;
+    }
+}
+
+#include <string>
+
+// kmeans top-level function
+std::vector<double>
+kmeans(
+        const std::vector<float_type> &data,
+        int K,
+        size_t max_iterations,
+        bool *converged) {
+    uint16_t radix_bins[n_radix_bins()];
+
+    float_type min_data, max_data;
+    // location of 1-D means
+    std::vector<double> means;
+    means.reserve(K);
+
+    // memset clear the bins
+    memset(radix_bins, 0, sizeof(uint16_t) * n_radix_bins());
+
+    preprocess_and_insert_data(data, radix_bins, min_data, max_data, data_norm);
+
+    // initialize means over the data points
+    for (int i = 0; i < K; ++i) {
+        means.push_back(double(i + 1) / (K + 1) * (max_data - min_data) + min_data);
+    }
+
+    // print initial means
+#ifndef NDEBUG
+    std::cout << "initial means: ";
+    for (auto mean: means) {
+        std::cout << (float(mean) + data_norm) << " ";
+    }
+    std::cout << std::endl;
+#endif
+
+    bool movement_candidate[K];
+    for (int i = 0; i < K; ++i) {
+        movement_candidate[i] = true;
+    }
+
+    bool have_globally_placed = false;
+    int iterations = 0;
+    while (true) {
+        // find the best mean to move
+        bool moved_something = false;
+        for (int i = 0; i < K; ++i) {
+            if (movement_candidate[i]) {
+                auto movement_result = find_locally_optimal_placement(i, K, means, radix_bins, min_data, max_data,
+                                                                      false);
+                movement_candidate[i] = false;
+                if (movement_result.valid && movement_result.improvement > 0) {
+                    moved_something = true;
+#ifndef NDEBUG
+                    std::cerr << "moved mean " << i << " from " << (means[i] + data_norm) << " to " << (movement_result.location + data_norm)
+                              << " with improvement " << movement_result.improvement << std::endl;
+#endif
+                    means[i] = movement_result.location;
+                    if (i > 0) {
+                        movement_candidate[i - 1] = true;
+                    }
+                    if (i < K - 1) {
+                        movement_candidate[i + 1] = true;
+                    }
+                } else {
+#ifndef NDEBUG
+                    std::cerr << "mean " << i << " at " << (means[i] + data_norm) << " is already optimal" << std::endl;
+#endif
+                }
+            }
+        }
+        iterations++;
+
+
+        if (!moved_something || iterations >= max_iterations) {
+            // without: total loss: 0.0146769
+            // with:    total loss: 0.0146985
+            // if we have found a local minimum for local placement, test to see if we can find a better global placement
+            // if we can't, we're done
+
+            if (converged != nullptr) {
+                *converged = iterations < max_iterations;
+            }
+            break;
+            if (have_globally_placed) {
+                break;
+            }
+            if (!find_global_placement(K, means, radix_bins, min_data, max_data)) {
+                std::cerr << "failed to find global placement" << std::endl;
+                break;
+            }
+            iterations = 0;
+            have_globally_placed = true;
+        }
+    }
+    // correct for offest in means
+    for (auto &mean: means) {
+        mean += data_norm;
+    }
+    return means;
+}
+
 
 bool find_global_placement(const int K,
                            std::vector<double> &means,
@@ -363,128 +609,4 @@ bool find_global_placement(const int K,
         std::sort(means.begin(), means.end());
         return true;
     } else return false;
-}
-
-void preprocess_and_insert_data(const std::vector<float_type> &fpar, uint16_t *radix_bins, float_type &min_data,
-                                float_type &max_data) {
-    min_data = (float_type) fpar[0] - MINIMUM_PERMISSIBLE_DATA_VALUE;
-    max_data = (float_type) fpar[0] - MINIMUM_PERMISSIBLE_DATA_VALUE;
-    memset(radix_bins, 0, sizeof(uint16_t) * (1 << 16));
-    for (const auto dat: fpar) {
-        auto adjusted_datum = float_type(dat - MINIMUM_PERMISSIBLE_DATA_VALUE);
-        if (dat < MINIMUM_PERMISSIBLE_DATA_VALUE) {
-            throw std::runtime_error(
-                    "data value (" + std::to_string(float(dat)) + ") smaller than minimum permissible data value (" +
-                    std::to_string(float(MINIMUM_PERMISSIBLE_DATA_VALUE)) + ")");
-        }
-        auto radix = float2radix(adjusted_datum);
-        if (radix_bins[radix] == (1 << (sizeof(radix_t) * 8)) - 1) {
-            std::cout << "radix bin overflow" << std::endl;
-            throw std::runtime_error("radix bin overflow");
-        }
-        radix_bins[radix]++;
-        if (adjusted_datum < min_data) min_data = adjusted_datum;
-        if (adjusted_datum > max_data) max_data = adjusted_datum;
-    }
-}
-
-#include <string>
-
-// kmeans top-level function
-std::vector<double>
-kmeans(
-        const std::vector<float_type> &data,
-        int K,
-        size_t max_iterations,
-        bool *converged) {
-    uint16_t radix_bins[n_radix_bins()];
-
-    float_type min_data, max_data;
-    // location of 1-D means
-    std::vector<double> means;
-    means.reserve(K);
-
-    // memset clear the bins
-    memset(radix_bins, 0, sizeof(uint16_t) * n_radix_bins());
-
-    preprocess_and_insert_data(data, radix_bins, min_data, max_data);
-
-    // initialize means over the data points
-    for (int i = 0; i < K; ++i) {
-        means.push_back(double(i + 1) / (K + 1) * (max_data - min_data) + min_data);
-    }
-
-    // print initial means
-#ifndef NDEBUG
-    std::cout << "initial means: ";
-    for (auto mean: means) {
-        std::cout << (float(mean) + MINIMUM_PERMISSIBLE_DATA_VALUE) << " ";
-    }
-    std::cout << std::endl;
-#endif
-
-    bool movement_candidate[K];
-    for (int i = 0; i < K; ++i) {
-        movement_candidate[i] = true;
-    }
-
-    bool have_globally_placed = false;
-    int iterations = 0;
-    while (true) {
-        // find the best mean to move
-        bool moved_something = false;
-        for (int i = 0; i < K; ++i) {
-            if (movement_candidate[i]) {
-                auto movement_result = find_locally_optimal_placement(i, K, means, radix_bins, min_data, max_data,
-                                                                      false);
-                movement_candidate[i] = false;
-                if (movement_result.valid && movement_result.improvement > 0) {
-                    moved_something = true;
-#ifndef NDEBUG
-                    std::cerr << "moved mean " << i << " from " << (means[i] + MINIMUM_PERMISSIBLE_DATA_VALUE) << " to " << (movement_result.location + MINIMUM_PERMISSIBLE_DATA_VALUE)
-                              << " with improvement " << movement_result.improvement << std::endl;
-#endif
-                    means[i] = movement_result.location;
-                    if (i > 0) {
-                        movement_candidate[i - 1] = true;
-                    }
-                    if (i < K - 1) {
-                        movement_candidate[i + 1] = true;
-                    }
-                } else {
-#ifndef NDEBUG
-                    std::cerr << "mean " << i << " at " << (means[i] + MINIMUM_PERMISSIBLE_DATA_VALUE) << " is already optimal" << std::endl;
-#endif
-                }
-            }
-        }
-        iterations++;
-
-
-        if (!moved_something || iterations >= max_iterations) {
-            // without: total loss: 0.0146769
-            // with:    total loss: 0.0146985
-            // if we have found a local minimum for local placement, test to see if we can find a better global placement
-            // if we can't, we're done
-
-            if (converged != nullptr) {
-                *converged = iterations < max_iterations;
-            }
-            break;
-            if (have_globally_placed) {
-                break;
-            }
-            if (!find_global_placement(K, means, radix_bins, min_data, max_data)) {
-                std::cerr << "failed to find global placement" << std::endl;
-                break;
-            }
-            iterations = 0;
-            have_globally_placed = true;
-        }
-    }
-    // correct for offest in means
-    for (auto &mean: means) {
-        mean += MINIMUM_PERMISSIBLE_DATA_VALUE;
-    }
-    return means;
 }

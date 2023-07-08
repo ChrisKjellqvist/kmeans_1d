@@ -92,7 +92,7 @@ int main() {
     int N_DATAS = 150;
 #endif
 
-    int K_MEANS = 16;
+    int K_MEANS = 4;
 
     for (int i = 0; i < N_DATAS; i++) {
         const auto sample_0 = sample.index(
@@ -121,19 +121,19 @@ int main() {
         total_ckmeans_time += std::chrono::duration_cast<std::chrono::microseconds>(end_ckmeans - start_ckmeans).count();
 
         // print means of both algortithms
-//        std::cout << "means ckk:     ";
-//        for (auto &mean: means) {
-//            printf("%0.6f ", mean);
-//        }
-//        auto color = (loss < ckmeans_loss) ? GREEN : RED;
-//        std::cout << color << "loss: " << loss << RESET;
-//        std::cout << std::endl;
-//        std::cout << "means ckmeans: ";
-//        for (auto &mean: ckmeans_means) {
-//            printf("%0.6f ", mean);
-//        }
-//        std::cout << YELLOW << "loss: " << ckmeans_loss << RESET;
-//        std::cout << std::endl;
+        std::cout << "means ckk:     ";
+        for (auto &mean: means) {
+            printf("%0.6f ", mean);
+        }
+        auto color = (loss < ckmeans_loss) ? GREEN : RED;
+        std::cout << color << "loss: " << loss << RESET;
+        std::cout << std::endl;
+        std::cout << "means ckmeans: ";
+        for (auto &mean: ckmeans_means) {
+            printf("%0.6f ", mean);
+        }
+        std::cout << YELLOW << "loss: " << ckmeans_loss << RESET;
+        std::cout << std::endl;
     }
 
     // print total time in second
