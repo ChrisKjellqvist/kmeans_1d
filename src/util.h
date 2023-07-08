@@ -26,7 +26,7 @@ radix_t float2radix(float_type f);
 double radix2float(radix_t radix);
 
 constexpr uint32_t n_radix_bins() {
-    return 1 << (8 * sizeof(radix_t));
+    return 1 << 16;
 }
 
 template <typename t>

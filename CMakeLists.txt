@@ -38,6 +38,9 @@ target_link_libraries(tensor_load_test CKKMeans)
 add_executable(double_check test/double_check.cpp)
 target_link_libraries(double_check CKKMeans ckmeans_wrapper "${TORCH_LIBRARIES}")
 
+add_executable(double_check_simple test/double_check_simple.cpp)
+target_link_libraries(double_check_simple CKKMeans ckmeans_wrapper)
+
 find_package(pybind11)
 if(pybind11_FOUND)
   add_library(binding SHARED src/binding.cpp)

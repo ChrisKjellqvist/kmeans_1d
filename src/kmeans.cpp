@@ -101,16 +101,21 @@ find_locally_optimal_placement(int k,
         return movement(zero, a * square(zero) + 2 * b * zero + c, true);
     }
     double bottom, top;
+    bool has_left, has_right;
     if (k == 0) {
-        bottom = my_max(means[1] - 2 * (means[1] - min_data), 0);
+        bottom = means[1] - 3 * (means[1] - min_data);
+        has_left = false;
     } else {
         bottom = means[k - 1];
+        has_left = true;
     }
 
     if (k == K - 1) {
-        top = my_min(means[K - 2] + 2 * (max_data - means[K - 2]), max_data);
+        top = means[K - 2] + 3 * (max_data - means[K - 2]);
+        has_right = false;
     } else {
         top = means[k + 1];
+        has_right = true;
     }
 
     double midpoint = top / 2 + bottom / 2;
@@ -126,9 +131,15 @@ find_locally_optimal_placement(int k,
     uint32_t top_idx, bot_idx;
     { // limit the scope of i
         top_idx = float2radix((float_type) midpoint);
-        bot_idx = float2radix((float_type) bottom) + 1;
-        while (radix_bins[bot_idx] == 0) bot_idx++;
-        while (radix_bins[top_idx] == 0 && top_idx <= absolute_top_idx) top_idx++;
+        if (bottom > 0) {
+            bot_idx = float2radix((float_type) bottom);
+        } else {
+            bot_idx = 0;
+        }
+        while (radix_bins[bot_idx] == 0 && has_left) bot_idx++;
+        while (radix_bins[top_idx] == 0 && top_idx <= absolute_top_idx && has_right) top_idx++;
+        if (!has_left) bot_idx = top_idx;
+        if (!has_right) top_idx = bot_idx;
 
         size_t i = bot_idx;
         for (; i < top_idx && radix2float(i) <= midpoint; ++i) {
@@ -145,7 +156,7 @@ find_locally_optimal_placement(int k,
             if (radix_bins[i] == 0) {
                 continue;
             }
-            double d = top - radix2float(i);
+            double d = (double)top - (double)radix2float(i);
             c += square(d) * radix_bins[i];
         }
     }
@@ -177,9 +188,9 @@ find_locally_optimal_placement(int k,
             if (left <= original_mean && original_mean <= right && !return_absolute_score) {
                 original_score = square(original_mean) * a + original_mean * 2 * b + c;
 
-                std::cout << "a: " << a << " b: " << b << " c: " << c << std::endl;
-                printf("original score: %0.16f\n", original_score);
-                printf("B: %0.16f\n", b);
+//                std::cout << "a: " << a << " b: " << b << " c: " << c << std::endl;
+//                printf("original score: %0.16f\n", original_score);
+//                printf("B: %0.16f\n", b);
             }
             if (derivative_zero >= left && derivative_zero <= right) {
                 saw_zero++;
@@ -255,9 +266,10 @@ find_locally_optimal_placement(int k,
         throw std::runtime_error("unexpected error 1");
     }
 
-    return movement(best_zero_position,
-                    return_absolute_score ? best_zero_mag : original_score - best_zero_mag,
-                    true);
+//    return movement(best_zero_position,
+//                    return_absolute_score ? best_zero_mag : original_score - best_zero_mag,
+//                    true);
+    return movement(best_zero_position, original_score - best_zero_mag, fabs(original_score - best_zero_mag) > 1e-2);
 }
 
 bool find_global_placement(const int K,
