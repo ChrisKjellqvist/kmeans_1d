@@ -25,7 +25,7 @@ bool find_global_placement(const int K,
                            float_type max_data);
 
 void preprocess_and_insert_data(const std::vector<float_type> &fpar, uint16_t *radix_bins, float_type &min_data,
-                                float_type &max_data, double &norm);
+                                float_type &max_data);
 
 struct movement {
     double location;

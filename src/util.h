@@ -23,7 +23,7 @@ using float_type = float;
 
 radix_t float2radix(float_type f);
 
-double radix2float(radix_t radix);
+float_type radix2float(radix_t radix);
 
 constexpr uint32_t n_radix_bins() {
     return 1 << 16;

@@ -24,6 +24,9 @@ add_library(ckmeans_wrapper SHARED src/ckmeans_wrapper.cpp)
 target_include_directories(ckmeans_wrapper PUBLIC src)
 target_link_libraries(ckmeans_wrapper PUBLIC CKMeans)
 
+add_executable(linearization_test test/linearization_test.cpp)
+target_link_libraries(linearization_test CKKMeans)
+
 find_package(Torch REQUIRED)
 add_executable(pytorch_test test/pytorch_test.cpp)
 target_link_libraries(pytorch_test "${TORCH_LIBRARIES}" ckmeans_wrapper CKKMeans)

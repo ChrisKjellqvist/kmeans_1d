@@ -3,11 +3,19 @@
 //
 
 #include "util.h"
+#include <cstdio>
 
 // we want to organize floats by radix so that the index represented by the radix still represents a float ordering
 radix_t float2radix(float_type f) {
 #ifdef HAS_FP16
-    return reinterpret_cast<radix_t&>(f);
+    radix_t idx = reinterpret_cast<radix_t&>(f);
+    bool sign = (idx & 0x8000) >> 15;
+    if (sign) {
+        idx = ~idx;
+    } else {
+        idx = idx | 0x8000;
+    }
+    return idx;
 #else
     uint32_t f32 = reinterpret_cast<uint32_t&>(f);
     auto exp = int32_t((f32 >> 23) & 0xFF);
@@ -21,10 +29,18 @@ radix_t float2radix(float_type f) {
     return ((exp << 10) |  mantissa) + round_up;
 #endif
 }
+#include <cstdio>
 
-double radix2float(radix_t f) {
+float_type radix2float(radix_t f) {
 #ifdef HAS_FP16
-    return reinterpret_cast<float_type&>(f);
+    uint16_t tmp;
+    bool sign = (f & 0x8000) >> 15;
+    if (sign) {
+        tmp = f & 0x7FFF;
+    } else {
+        tmp = ~f;
+    }
+    return reinterpret_cast<float_type&>(tmp);
 #else
     uint32_t exp = (f >> 10) & 0x1F;
     uint32_t mantissa = f & 0x3FF;

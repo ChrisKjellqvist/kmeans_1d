@@ -10,28 +10,28 @@
 #include <memory>
 #include <algorithm>
 
-static double get_zero(uint32_t a, mpq_t &b, mpq_t &tmp, mpq_t &tmp2, mpq_t &tmp3) {
-    auto b_d = mpq_get_d(b);
-    mpq_set_ui(tmp, a, 1);
-    mpq_neg(tmp2, b);
-    mpq_div(tmp3, tmp2, tmp);
-    return mpq_get_d(tmp3);
+static double get_zero(uint32_t a, mpf_t &b, mpf_t &tmp, mpf_t &tmp2, mpf_t &tmp3) {
+//    auto b_d = mpf_get_d(b);
+    mpf_set_ui(tmp, a);
+    mpf_neg(tmp2, b);
+    mpf_div(tmp3, tmp2, tmp);
+    return mpf_get_d(tmp3);
 }
 
-static double evaluate(uint32_t a, mpq_t &b, mpq_t &c, mpq_t &tmp, mpq_t &tmp2, mpq_t &tmp3, double x) {
-    double b_d = mpq_get_d(b);
-    double c_d = mpq_get_d(c);
-//    mpq_set_d(tmp, x);
-//    mpq_set_ui(tmp3, 2, 1);
-//    mpq_mul(tmp2, b, tmp);
-//    mpq_mul(tmp2, tmp2, tmp3);
-//    mpq_mul(tmp, tmp, tmp);
-//    mpq_set_ui(tmp3, a, 1);
-//    mpq_mul(tmp, tmp3, tmp);
-//    mpq_add(tmp2, tmp, tmp2);
-//    mpq_add(tmp2, tmp2, c);
+static double evaluate(uint32_t a, mpf_t &b, mpf_t &c, mpf_t &tmp, mpf_t &tmp2, mpf_t &tmp3, double x) {
+    double b_d = mpf_get_d(b);
+    double c_d = mpf_get_d(c);
+//    mpf_set_d(tmp, x);
+//    mpf_set_ui(tmp3, 2);
+//    mpf_mul(tmp2, b, tmp);
+//    mpf_mul(tmp2, tmp2, tmp3);
+//    mpf_mul(tmp, tmp, tmp);
+//    mpf_set_ui(tmp3, a);
+//    mpf_mul(tmp, tmp3, tmp);
+//    mpf_add(tmp2, tmp, tmp2);
+//    mpf_add(tmp2, tmp2, c);
     return a * x * x + 2 * b_d * x + c_d;
-//    return mpq_get_d(tmp2);
+//    return mpf_get_d(tmp2);
 }
 
 /**
@@ -99,7 +99,6 @@ static double evaluate(uint32_t a, mpq_t &b, mpq_t &c, mpq_t &tmp, mpq_t &tmp2, 
  * 6. Return the means
  */
 
-double data_norm;
 movement
 find_locally_optimal_placement(int k,
                                int K,
@@ -159,33 +158,27 @@ find_locally_optimal_placement(int k,
     uint32_t a = 0;
     // b actually stores b / 2. Because we're only adding (x - c)^2, 2xc is the only thing being added to b
     // this ends up in wasting a mantissa bit which may end up being a problem and causing non-convergence
-    mpq_t b, c, tmp, tmp2, tmp3, radix;
-    mpq_inits(b, c, tmp, tmp2, tmp3, radix, nullptr);
-    mpq_set_ui(b, 0, 1);
-    mpq_set_ui(c, 0, 1);
+    mpf_t b, c, tmp, tmp2, tmp3, radix;
+    mpf_set_default_prec(256);
+    mpf_inits(b, c, tmp, tmp2, tmp3, radix, nullptr);
+    mpf_set_ui(b, 0);
+    mpf_set_ui(c, 0);
 
     uint32_t top_idx, bot_idx;
     { // limit the scope of i
         top_idx = float2radix((float_type) midpoint);
-        if (bottom > 0) {
-            bot_idx = float2radix((float_type) bottom);
-        } else {
-            bot_idx = 0;
-        }
+        bot_idx = float2radix((float_type) bottom);
         if (k > 0) {
-            if (float2radix(means[k - 1]) == bot_idx) {
-                bot_idx++;
-            }
+            bot_idx++;
         }
         while (radix_bins[bot_idx] == 0 && has_left) bot_idx++;
-        while ((radix_bins[top_idx] == 0 || (top - 2 * (top - radix2float(top_idx))) < my_max(0, bottom)) &&
-        top_idx <= absolute_top_idx &&
-        has_right) top_idx++;
-//        if (!has_left) bot_idx = top_idx;
-//        if (!has_right) top_idx = bot_idx;
+        while (radix_bins[top_idx] == 0 && top_idx <= absolute_top_idx && has_right)
+            top_idx++;
+        radix_t true_midpoint_idx = top_idx;
+
 
         size_t i = bot_idx;
-        for (; i < top_idx && radix2float(i) <= midpoint; ++i) {
+        for (; i < top_idx; ++i) {
             if (radix_bins[i] == 0) {
                 continue;
             }
@@ -193,46 +186,61 @@ find_locally_optimal_placement(int k,
             // x^2 - 2 * datas[i]x + datas[i] ^ 2
             a += radix_bins[i];
             datas_encountered++;
-            mpq_set_ui(radix, radix_bins[i], 1);
-            mpq_set_d(tmp, (double) radix2float(i));
-            mpq_mul(tmp2, tmp, radix);
+            mpf_set_ui(radix, radix_bins[i]);
+            mpf_set_d(tmp, (double) radix2float(i));
+            mpf_mul(tmp2, tmp, radix);
             // b -= radix_bins[i] * (double) radix2float(i);
-            mpq_sub(b, b, tmp2);
+            mpf_sub(b, b, tmp2);
             // c += square((double) radix2float(i)) * radix_bins[i];
-            mpq_mul(tmp3, tmp, tmp);
-            mpq_mul(tmp2, tmp3, radix);
-            mpq_add(c, c, tmp2);
-            mpq_canonicalize(b);
-            mpq_canonicalize(c);
+            mpf_mul(tmp3, tmp, tmp);
+            mpf_mul(tmp2, tmp3, radix);
+            mpf_add(c, c, tmp2);
+//            mpf_canonicalize(b);
+//            mpf_canonicalize(c);
 #ifndef NDEBUG
-            printf("a: %u, b: %f, c: %f after adding parabolic term %f\n", a, mpq_get_d(b), mpq_get_d(c), radix2float(i));
+            printf("a: %u, b: %0.16f, c: %0.16f after adding parabolic term %f\n", a, mpf_get_d(b), mpf_get_d(c),
+                   radix2float(i));
 #endif
         }
         for (; i < absolute_top_idx; ++i) {
             if (radix_bins[i] == 0) {
                 continue;
             }
-            double d = (double)top - (double)radix2float(i);
-            mpq_set_d(tmp2, d);
-            mpq_mul(tmp, tmp2, tmp2);
-            mpq_set_ui(radix, radix_bins[i], 1);
-            mpq_mul(tmp3, tmp, radix);
-            // c += d^2 * radix_bins[i];
-            mpq_add(c, c, tmp3);
+            mpf_set_d(tmp, (double) radix2float(i));
+            mpf_set_d(tmp2, top);
 #ifndef NDEBUG
-            printf("a: %u, b: %f, c: %f after adding constant term %f\n", a, mpq_get_d(b), mpq_get_d(c), radix2float(i));
+            printf("tmp: %16.16f, tmp2: %16.16f\n", mpf_get_d(tmp), mpf_get_d(tmp2));
+#endif
+            mpf_sub(tmp2, tmp, tmp2);
+            // double d = (double) top - (double) radix2float(i);
+            mpf_mul(tmp, tmp2, tmp2);
+            mpf_set_ui(radix, radix_bins[i]);
+            mpf_mul(tmp3, tmp, radix);
+            // c += d^2 * radix_bins[i];
+            mpf_add(c, c, tmp3);
+//            mpf_canonicalize(c);
+#ifndef NDEBUG
+            printf("a: %u, b: %0.12f, c: %0.12f after adding constant term %0.8f\n", a, mpf_get_d(b), mpf_get_d(c),
+                   radix2float(i));
 #endif
         }
     }
-    double left_disc = bottom + 2 * (radix2float(bot_idx) - bottom);
-    double right_disc = top - 2 * (top - radix2float(top_idx));
+    double left_disc = bottom + 2 * fabs(radix2float(bot_idx) - bottom);
+    double right_disc = top - 2 * fabs(top - radix2float(top_idx));
     double left = bottom, right;
     // first discontinuity
-    if (left_disc < right_disc) {
-        right = left_disc;
-    } else {
+    if (has_left && has_right) {
+        if (left_disc < right_disc) {
+            right = left_disc;
+        } else {
+            right = right_disc;
+        }
+    } else if (!has_left) {
         right = right_disc;
+    } else {
+        right = left_disc;
     }
+
     // best_zero_.* are where we're going to put the k-mean for optimal placement
     double best_zero_position, best_zero_mag;
     double original_score;
@@ -244,26 +252,21 @@ find_locally_optimal_placement(int k,
 
     // consider the discontinuities in order
 #ifndef NDEBUG
-    printf("Initial left disc idx %u, right disc idx %u, top idx %u for %d/%d\n",
-           float2radix(left_disc), float2radix(right_disc), absolute_top_idx, k, K);
+    printf("Initial left disc idx %u (%0.8f), right disc idx %u (%0.8f), top idx %u for %d/%d\n",
+           float2radix((float_type) left_disc), left_disc, float2radix((float_type) right_disc), right_disc, absolute_top_idx, k, K);
+    printf("Absolute top: %0.8f, top: %0.8f, bottom: %0.8f\n", top, radix2float(absolute_top_idx), bottom);
+    printf("Will be looking for a zero at %0.8f\n", original_mean);
+    printf("Will enter loop: %d %d\n",
+           float2radix(left_disc) <= absolute_top_idx && has_left,
+           float2radix(right_disc) <= absolute_top_idx && has_right);
 #endif
-    auto zero_loc = get_zero(a, b, tmp, tmp2, tmp3);
-    if (zero_loc >= left && zero_loc <= right) {
-        saw_zero = 1;
-        best_zero_position = zero_loc;
-        best_zero_mag = evaluate(a, b, c, tmp, tmp2, tmp3, zero_loc);
-#ifndef NDEBUG
-        std::cout << "Found initial zero at " << best_zero_position << " with score " << best_zero_mag << "\n";
-#endif
-    } else {
-#ifndef NDEBUG
-        std::cout << "No initial zero found because " << zero_loc << " is not in [" << left << ", " << right << "]\n";
-#endif
-    }
+
     if (original_mean >= left && original_mean <= right) {
         original_score = evaluate(a, b, c, tmp, tmp2, tmp3, original_mean);
     }
-    while (my_min(float2radix(left_disc), float2radix(right_disc)) <= absolute_top_idx) {
+    while (
+            (float2radix(left_disc) <= absolute_top_idx && has_left) ||
+            (float2radix(right_disc) <= absolute_top_idx && has_right)) {
         // d/dx of current parabola is 2ax + b
         // so solution = -b/2a
         if (a > 0) {
@@ -271,7 +274,7 @@ find_locally_optimal_placement(int k,
             // mean there will result in 0 points being assigned to the mean. This is _never_ optimal and will result
             // in a divide by zero error. At any rate, it's not important to consider besides for the obvious error.
             // it is also incredibly rare to have a flat portion in the middle, so this `if` will be trained unlikely
-            auto b_d = mpq_get_d(b);
+            auto b_d = mpf_get_d(b);
             auto derivative_zero = get_zero(a, b, tmp, tmp2, tmp3);
             if (left <= original_mean && original_mean <= right && !return_absolute_score) {
                 original_score = evaluate(a, b, c, tmp, tmp2, tmp3, original_mean);
@@ -281,7 +284,12 @@ find_locally_optimal_placement(int k,
             }
             if (derivative_zero >= left && derivative_zero <= right) {
                 saw_zero++;
-                double par_at_dzero = derivative_zero * derivative_zero * a + derivative_zero * 2 * b_d + mpq_get_d(c);
+                // evaluate parabola using mpq
+
+                double par_at_dzero = evaluate(a, b, c, tmp, tmp2, tmp3, derivative_zero);
+#ifndef NDEBUG
+                printf("saw zero at %0.16f with score %0.16f\n", derivative_zero, par_at_dzero);
+#endif
                 // x, y pair
                 if (no_zero) {
                     no_zero = false;
@@ -295,27 +303,32 @@ find_locally_optimal_placement(int k,
             } // else this section does not have a local minimum
         }
         left = right;
-        if (left_disc < right_disc) {
+        if ((left_disc < right_disc && has_left) || !has_right) {
             // move discontinuity bounds
             // if the disc comes the left set then it's a parabola becoming flat and the ownership of this point is
             // transferred to the neighboring mean
             a -= radix_bins[bot_idx];
-            mpq_set_ui(radix, radix_bins[bot_idx], 1);
-            mpq_set_d(tmp, (double) radix2float(bot_idx));
-            mpq_mul(tmp2, tmp, radix);
+            mpf_set_ui(radix, radix_bins[bot_idx]);
+            mpf_set_d(tmp, (double) radix2float(bot_idx));
+//            mpf_canonicalize(tmp);
+            mpf_mul(tmp2, tmp, radix);
             // b += (double) radix2float(bot_idx) * radix_bins[bot_idx];
-            mpq_add(b, b, tmp2);
+            mpf_add(b, b, tmp2);
             // c = c - radix_bins[bot_idx] * (square((double) radix2float(bot_idx)) + square((double) diff))
-            mpq_mul(tmp3, tmp, tmp);
+            mpf_mul(tmp3, tmp, tmp);
+            mpf_mul(tmp3, tmp3, radix);
+            mpf_sub(c, c, tmp3);
             auto diff = bottom - radix2float(bot_idx);
-            mpq_set_d(tmp2, diff);
-            mpq_mul(tmp2, tmp2, tmp2);
-            mpq_sub(tmp3, tmp2, tmp3);
-            mpq_add(c, c, tmp3);
-            mpq_canonicalize(b);
-            mpq_canonicalize(c);
+            mpf_set_d(tmp2, bottom);
+            mpf_sub(tmp2, tmp2, tmp);
+            mpf_mul(tmp2, tmp2, tmp2);
+            mpf_mul(tmp2, tmp2, radix);
+            mpf_sub(c, c, tmp2);
+//            mpf_canonicalize(b);
+//            mpf_canonicalize(c);
 #ifndef NDEBUG
-            printf("a: %d, b: %0.16f, c: %0.16f after removing parabolic term %f\n", a, mpq_get_d(b), mpq_get_d(c), radix2float(top_idx));
+            printf("a: %d, b: %0.16f, c: %0.16f after transforming parabolic term %f to constant\n", a, mpf_get_d(b), mpf_get_d(c),
+                   radix2float(bot_idx));
 #endif
             do {
                 bot_idx++;
@@ -328,36 +341,71 @@ find_locally_optimal_placement(int k,
             // if the disc comes from the right set then it's a flat area becoming a parabola
             a += radix_bins[top_idx];
             datas_encountered++;
-            mpq_set_ui(radix, radix_bins[top_idx], 1);
-            mpq_set_d(tmp, (double) radix2float(top_idx));
-            mpq_mul(tmp2, tmp, radix);
+            mpf_set_ui(radix, radix_bins[top_idx]);
+            mpf_set_d(tmp, (double) radix2float(top_idx));
+//            mpf_canonicalize(tmp);
+            mpf_mul(tmp2, tmp, radix);
             // b -= (double) radix2float(top_idx) * radix_bins[top_idx];
-            mpq_sub(b, b, tmp2);
-            auto diff = radix2float(absolute_top_idx) - radix2float(top_idx);
+            mpf_sub(b, b, tmp2);
+//            auto diff = radix2float(absolute_top_idx) - radix2float(top_idx);
             // c += square((double) radix2float(top_idx)) * radix_bins[top_idx];
             // c -= square((double) diff) * radix_bins[top_idx];
             // equivalent to c += radix * (r2f(top_idx)^2 - diff^2)
-            mpq_mul(tmp3, tmp, tmp);
-            mpq_set_d(tmp2, diff);
-            mpq_mul(tmp2, tmp2, tmp2);
-            mpq_sub(tmp3, tmp3, tmp2);
-            mpq_mul(tmp3, tmp3, radix);
-            mpq_add(c, c, tmp3);
-            mpq_canonicalize(b);
-            mpq_canonicalize(c);
+            mpf_mul(tmp3, tmp, tmp);
+            mpf_mul(tmp3, tmp3, radix);
+            mpf_add(c, c, tmp3);
+
+            mpf_set_d(tmp2, radix2float(absolute_top_idx));
+            mpf_sub(tmp2, tmp2, tmp);
+            mpf_mul(tmp2, tmp2, tmp2);
+            mpf_mul(tmp3, tmp2, radix);
+            mpf_sub(c, c, tmp3);
+//            mpf_canonicalize(b);
+//            mpf_canonicalize(c);
 #ifndef NDEBUG
-            printf("a: %d, b: %0.16f, c: %0.16f after adding parabolic term %f\n", a, mpq_get_d(b), mpq_get_d(c), radix2float(top_idx));
+            printf("a: %d, b: %0.16f, c: %0.16f after transforming constant term %f to parabolic\n", a, mpf_get_d(b), mpf_get_d(c),
+                   radix2float(top_idx));
 #endif
             do {
                 top_idx++;
             } while (radix_bins[top_idx] == 0 && top_idx <= absolute_top_idx);
             right_disc = top - 2 * (top - radix2float(top_idx));
         }
-        if (left_disc < right_disc) {
-            right = left_disc;
-        } else {
+        if (has_left && has_right) {
+            if (left_disc < right_disc) {
+                right = left_disc;
+            } else {
+                right = right_disc;
+            }
+        } else if (!has_left) {
             right = right_disc;
+        } else {
+            right = left_disc;
         }
+#ifndef NDEBUG
+        printf("After update left(%0.16f) right(%0.16f)\t", left, right);
+        printf("left disc: %0.16f from term %f\t", left_disc, radix2float(bot_idx));
+        printf("right disc: %0.16f from term %f\n", right_disc, radix2float(top_idx));
+#endif
+    }
+    // take final derivative
+    if (a > 0) {
+        auto b_d = mpf_get_d(b);
+        auto derivative_zero = get_zero(a, b, tmp, tmp2, tmp3);
+        if (derivative_zero >= left && derivative_zero <= right) {
+            saw_zero++;
+            double par_at_dzero = derivative_zero * derivative_zero * a + derivative_zero * 2 * b_d + mpf_get_d(c);
+            // x, y pair
+            if (no_zero) {
+                no_zero = false;
+                best_zero_position = derivative_zero;
+                best_zero_mag = par_at_dzero;
+            } else if (par_at_dzero < best_zero_mag) {
+                saw_zero++;
+                best_zero_position = derivative_zero;
+                best_zero_mag = par_at_dzero;
+            }
+        } // else this section does not have a local minimum
     }
     if (saw_zero == 0) {
         if (datas_encountered > 0) {
@@ -374,7 +422,7 @@ find_locally_optimal_placement(int k,
 #ifndef NDEBUG
         std::cerr << "no data points in this section" << std::endl;
 #endif
-        mpq_clears(b, c, tmp, tmp2, tmp3, radix, nullptr);
+        mpf_clears(b, c, tmp, tmp2, tmp3, radix, nullptr);
         return movement(0, original_mean, false);
     }
     if (means[k] == best_zero_position) {
@@ -382,7 +430,7 @@ find_locally_optimal_placement(int k,
             std::cerr << original_score << " " << best_zero_mag << std::endl;
             throw std::runtime_error("unexpected error 0");
         }
-        mpq_clears(b, c, tmp, tmp2, tmp3, radix, nullptr);
+        mpf_clears(b, c, tmp, tmp2, tmp3, radix, nullptr);
         return movement(original_mean, 0, false);
     }
     // this error should not occur when using native fp16 but when
@@ -392,31 +440,24 @@ find_locally_optimal_placement(int k,
         std::cerr << original_score << " " << best_zero_mag << std::endl;
         throw std::runtime_error("unexpected error 1");
     }
-    mpq_clears(b, c, tmp, tmp2, tmp3, radix, nullptr);
-    return movement(best_zero_position, original_score - best_zero_mag, fabs(original_score - best_zero_mag) > 1e-8);
+    mpf_clears(b, c, tmp, tmp2, tmp3, radix, nullptr);
+    return movement(best_zero_position, original_score - best_zero_mag, true);
 }
 
 void preprocess_and_insert_data(const std::vector<float_type> &fpar, uint16_t *radix_bins, float_type &min_data,
-                                float_type &max_data, double &norm) {
-    norm = fpar[0];
+                                float_type &max_data) {
     memset(radix_bins, 0, sizeof(uint16_t) * (1 << 16));
     for (const auto dat: fpar) {
-        if (dat < norm) norm = dat;
-    }
-    for (const auto dat: fpar) {
-        auto adjusted_datum = float_type(dat - norm);
-        auto radix = float2radix(adjusted_datum);
+        auto radix = float2radix(dat);
         if (radix_bins[radix] == (1 << (sizeof(radix_t) * 8)) - 1) {
             std::cout << "radix bin overflow" << std::endl;
             throw std::runtime_error("radix bin overflow");
         }
         radix_bins[radix]++;
-        if (adjusted_datum < min_data) min_data = adjusted_datum;
-        if (adjusted_datum > max_data) max_data = adjusted_datum;
+        if (dat < min_data) min_data = dat;
+        if (dat > max_data) max_data = dat;
     }
 }
-
-#include <string>
 
 // kmeans top-level function
 std::vector<double>
@@ -435,7 +476,7 @@ kmeans(
     // memset clear the bins
     memset(radix_bins, 0, sizeof(uint16_t) * n_radix_bins());
 
-    preprocess_and_insert_data(data, radix_bins, min_data, max_data, data_norm);
+    preprocess_and_insert_data(data, radix_bins, min_data, max_data);
 
     // initialize means over the data points
     for (int i = 0; i < K; ++i) {
@@ -446,7 +487,7 @@ kmeans(
 #ifndef NDEBUG
     std::cout << "initial means: ";
     for (auto mean: means) {
-        std::cout << (float(mean) + data_norm) << " ";
+        std::cout << float(mean) << " ";
     }
     std::cout << std::endl;
 #endif
@@ -469,7 +510,8 @@ kmeans(
                 if (movement_result.valid && movement_result.improvement > 0) {
                     moved_something = true;
 #ifndef NDEBUG
-                    std::cerr << "moved mean " << i << " from " << (means[i] + data_norm) << " to " << (movement_result.location + data_norm)
+                    std::cerr << "moved mean " << i << " from " << means[i] << " to "
+                              << movement_result.location
                               << " with improvement " << movement_result.improvement << std::endl;
 #endif
                     means[i] = movement_result.location;
@@ -481,7 +523,7 @@ kmeans(
                     }
                 } else {
 #ifndef NDEBUG
-                    std::cerr << "mean " << i << " at " << (means[i] + data_norm) << " is already optimal" << std::endl;
+                    std::cerr << "mean " << i << " at " << means[i] << " is already optimal" << std::endl;
 #endif
                 }
             }
@@ -510,14 +552,10 @@ kmeans(
             have_globally_placed = true;
         }
     }
-    // correct for offest in means
-    for (auto &mean: means) {
-        mean += data_norm;
-    }
     return means;
 }
 
-
+/*
 bool find_global_placement(const int K,
                            std::vector<double> &means,
                            const uint16_t *radix_bins,
@@ -610,3 +648,4 @@ bool find_global_placement(const int K,
         return true;
     } else return false;
 }
+*/
